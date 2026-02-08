@@ -4,3 +4,4 @@ export { Card } from './Card';
 export { SymptomDropdown } from './SymptomDropdown';
 export { PainSlider } from './PainSlider';
 export { EmergencyAlert } from './EmergencyAlert';
+export { SkeletonLog } from './SkeletonLog';

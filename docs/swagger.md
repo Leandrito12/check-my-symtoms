@@ -323,7 +323,11 @@ No son Edge Functions. Se usa el cliente `@supabase/supabase-js` con JWT contra 
 | **symptoms_master** | select | **Bearer obligatorio** | Lista para dropdown: `.select('id, name').order('name')`. |
 | **symptoms_master** | insert | **Bearer obligatorio** | Agregar nuevo síntoma (creatable): `.insert({ name, created_by: user.id }).select('id, name').single()`. |
 
-Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/createSymptom.ts`, `src/useCases/createHealthLog.ts`.
+Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/createSymptom.ts`, `src/useCases/createHealthLog.ts`. **Fase 2:** `sharedLogGet`, `sharedLogPost`, `uploadPrescription` en vista compartida (`SharedViewScreen` + `CommentForm`); `prescriptionSignedUrl` para visor de receta en app paciente. **Fase 3:** `fetchHealthLogsForPatient` incluye `blood_pressure`, `heart_rate`, `oxygen_saturation` para **Health Dashboard** (gráficos con victory-native: evolución FC y presión sistólica); **Offline:** `PersistQueryClientProvider` + `createAsyncStoragePersister` (AsyncStorage, clave `CHECK_MY_SINTOMS_QUERY_CACHE`, gcTime 24 h) para que la caché de TanStack Query persista y se recupere sin red. **Fase 4:** En Inicio, indicador "Receta" (badge) en los logs que tienen al menos un comentario con adjunto; se usa `useQueries` + `shared-log` GET (hasta 20 logs) para detectar prescripciones. **Fase 5:** Compartir link vista médico: `getSharedViewUrl(logId)` (base `EXPO_PUBLIC_APP_URL`), botón "Compartir" en cada ítem de Inicio y "Compartir con el médico" en detalle del log; `Share.share()` con la URL.
+
+**Estado backend (Fase 3 – ya cubierto):**  
+- **Visor de PDF in-app:** El backend está cubierto. La Edge Function **prescription-signed-url** (GET o POST con JWT) devuelve una `url` temporal (24 h). El frontend llama a ese endpoint y muestra la receta **dentro de la app** en un modal con **WebView** (`react-native-webview`), sin abrir el navegador externo. Flujo: "Ver receta" → `prescriptionSignedUrl` → `PrescriptionViewerContext.setPrescriptionUrl(url)` → navegación a `/prescription-viewer` (modal) → WebView con la URL firmada.  
+- **Índices para historial:** Ya existen en base de datos: `idx_health_logs_patient_created` en `(patient_id, created_at desc)` y `idx_health_logs_patient_symptom_created` en `(patient_id, symptom_id, created_at desc)`. Las consultas de historial por paciente y rango de fechas están cubiertas.
 
 ---
 

@@ -10,10 +10,11 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProps) {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
@@ -31,6 +32,20 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      onSuccess?.();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'No se pudo iniciar sesión con Google.';
+      setError(message);
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -72,6 +87,19 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
           fullWidth
           style={styles.button}
         />
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>o</Text>
+          <View style={styles.dividerLine} />
+        </View>
+        <Button
+          title={googleLoading ? 'Conectando...' : 'Continuar con Google'}
+          variant="outline"
+          onPress={handleGoogle}
+          disabled={googleLoading || loading}
+          fullWidth
+          style={styles.button}
+        />
         <Button title="Crear cuenta" variant="outline" onPress={onGoRegister} fullWidth />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -103,4 +131,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: { marginTop: 8, marginBottom: 12 },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: SafeHarbor.colors.border,
+  },
+  dividerText: {
+    fontSize: 14,
+    color: SafeHarbor.colors.text,
+    opacity: 0.7,
+  },
 });

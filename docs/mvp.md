@@ -32,7 +32,22 @@ El objetivo es completar la ficha clínica y asegurar que la app sea robusta ant
 • **Health Dashboard:** Gráficos simples (puedes usar `victory-native`) para ver la evolución de la presión arterial y frecuencia cardíaca en el tiempo.
 • **Offline Persistence:** Implementar **persistQueryClient** para que si el paciente carga un síntoma en el ascensor o clínica sin señal, se sincronice automáticamente al recuperar conexión.
 **Backend**
-• **PDF Parser/Viewer:** Integración de un visor de PDFs dentro de la app para que el paciente no tenga que salir de la aplicación para leer la receta.
+• **PDF Parser/Viewer:** Integración de un visor de PDFs dentro de la app para que el paciente no tenga que salir de la aplicación para leer la receta. *(Backend ya cubierto: prescription-signed-url devuelve URL temporal; el frontend solo usa esa URL en WebView/PDF o expo-web-browser.)*
 **Database**
-• **Indexing:** Optimización de queries por fecha y `user_id` para asegurar que el historial cargue en milisegundos.
+• **Indexing:** Optimización de queries por fecha y `user_id` para asegurar que el historial cargue en milisegundos. *(Ya existen: idx_health_logs_patient_created, idx_health_logs_patient_symptom_created.)*
+**Fase 4 (Post-MVP): Notificación in-app "Receta"**
+El objetivo es que el paciente vea en Inicio qué síntomas tienen una prescripción sin entrar al detalle.
+**Frontend**
+• **Indicador "Receta":** En la lista de síntomas (Inicio), mostrar badge "Receta" en los ítems que tengan al menos un comentario con adjunto (prescripción). Se usa `shared-log` GET por cada log (hasta 20) vía `useQueries`; los resultados se cachean con TanStack Query.
+**Fase 5 (Post-MVP): Compartir link con el médico**
+El objetivo es que el paciente pueda enviar al médico la URL de la vista compartida desde la app.
+**Frontend**
+• **Compartir desde Inicio:** En cada ítem de la lista, botón "Compartir" que abre el share sheet del sistema con la URL pública del síntoma (`EXPO_PUBLIC_APP_URL/v/{log_id}`).
+• **Compartir desde detalle:** En la pantalla de detalle del log, botón "Compartir con el médico" que hace lo mismo. URL construida con `getSharedViewUrl(logId)`; variable de entorno `EXPO_PUBLIC_APP_URL` para la base (ej. producción).
 **Resumen de Mejores Prácticas AplicadasAreaPráctica / PrincipioBeneficioFrontendAtomic Design**Componentes reutilizables (Botones, Inputs) en Web y Mobile.**BackendDRY (Don't Repeat Yourself)**Validaciones de salud centralizadas en una sola función.**DBNormalización**Evita duplicidad de nombres de síntomas y permite análisis de datos futuro.**SeguridadLeast Privilege**El link compartido solo da acceso al síntoma específico, no a todo el historial.
+
+**Login con Google (OAuth)**  
+En Supabase: **Authentication → URL Configuration → Redirect URLs** hay que añadir la URL de callback de la app para que el login con Google funcione:
+- **Producción / build:** `checkmysintoms://auth/callback` (scheme definido en `app.json`).
+- **Desarrollo (Expo Go / dev):** la URL que devuelve `Linking.createURL('auth/callback')` en tu entorno (p. ej. `exp://192.168.x.x:8081/--/auth/callback`). Puedes loguearla en consola al pulsar "Continuar con Google" si no estás seguro.
+La ruta `app/auth/callback.tsx` recibe el redirect, parsea `access_token` y `refresh_token` del hash, llama a `supabase.auth.setSession` y redirige a `/(tabs)`.
