@@ -309,14 +309,37 @@ o
 
 ---
 
+## Supabase Table API (uso desde frontend)
+
+No son Edge Functions. Se usa el cliente `@supabase/supabase-js` con JWT contra la API de tablas (PostgREST). RLS aplica. Documentación detallada en el repo backend (docs/swagger.md, secciones 6, 7 y 8).
+
+**Backend Fase 1 (listo):** El bucket `symptoms-photos` existe (privado) con RLS: el usuario solo puede subir en su carpeta (path debe empezar por su `patient_id`). En `health_logs` el paciente puede hacer update de sus propios registros (`patient_id = auth.uid()`). Flujo foto: insert sin `image_path` → upload al bucket → update del registro con `image_path` (ver backend swagger sección 6).
+
+| Recurso | Operación | Auth | Uso en la app |
+|---------|-----------|------|----------------|
+| **health_logs** | insert | **Bearer obligatorio** | Crear registro de síntoma tras process-health-log con `emergency: false`. Campos: `patient_id`, `symptom_id`, `pain_level`, `context`, `blood_pressure`, `heart_rate`, `oxygen_saturation`, `image_path`. Si se adjunta foto: crear log primero, subir a Storage, luego actualizar `image_path` vía update. |
+| **health_logs** | update | **Bearer obligatorio** | Actualizar `image_path` tras subir la foto al bucket (mismo usuario). |
+| **Storage bucket `symptoms-photos`** | upload | **Bearer obligatorio** | Ruta: `{patient_id}/{log_id}/symptom.jpg`. Compresión en cliente (expo-image-manipulator: max width 1024px, JPEG 0.8) antes de subir. |
+| **symptoms_master** | select | **Bearer obligatorio** | Lista para dropdown: `.select('id, name').order('name')`. |
+| **symptoms_master** | insert | **Bearer obligatorio** | Agregar nuevo síntoma (creatable): `.insert({ name, created_by: user.id }).select('id, name').single()`. |
+
+Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/createSymptom.ts`, `src/useCases/createHealthLog.ts`.
+
+---
+
 ## Resumen rápido
 
-| Endpoint | Método | Auth | Uso |
-|----------|--------|------|-----|
-| process-health-log | POST | Opcional (Bearer) | Validar urgencia antes de guardar síntoma |
-| shared-log | GET | No | Cargar log + comentarios (vista compartida) |
-| shared-log | POST | No | Crear comentario (vista compartida) |
-| prescription-signed-url | GET / POST | **Bearer obligatorio** | Obtener URL para ver prescripción (app paciente) |
-| upload-prescription | POST | No | Crear comentario + adjuntar PDF/imagen (vista compartida) |
+| Recurso | Tipo | Auth | Uso |
+|---------|------|------|-----|
+| process-health-log | Edge Function POST | Opcional (Bearer) | Validar urgencia antes de guardar síntoma |
+| **health_logs** (insert) | Tabla Supabase | **Bearer obligatorio** | Crear registro de síntoma tras validar |
+| **health_logs** (update) | Tabla Supabase | **Bearer obligatorio** | Actualizar image_path tras subir foto |
+| **symptoms-photos** (upload) | Storage Supabase | **Bearer obligatorio** | Subir foto del síntoma (comprimida en cliente) |
+| **symptoms_master** (select) | Tabla Supabase | **Bearer obligatorio** | Lista para dropdown |
+| **symptoms_master** (insert) | Tabla Supabase | **Bearer obligatorio** | Agregar nuevo síntoma en dropdown |
+| shared-log | Edge Function GET | No | Cargar log + comentarios (vista compartida) |
+| shared-log | Edge Function POST | No | Crear comentario (vista compartida) |
+| prescription-signed-url | Edge Function GET / POST | **Bearer obligatorio** | Obtener URL para ver prescripción (app paciente) |
+| upload-prescription | Edge Function POST | No | Crear comentario + adjuntar PDF/imagen (vista compartida) |
 
-Spec completo en OpenAPI 3.0: [docs/openapi.yaml](openapi.yaml).
+Spec completo en OpenAPI 3.0 (solo Edge Functions): [docs/openapi.yaml](openapi.yaml).
