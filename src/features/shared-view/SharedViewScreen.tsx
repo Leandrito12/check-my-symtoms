@@ -88,9 +88,12 @@ export function SharedViewScreen({ logId }: SharedViewScreenProps) {
             ) : null}
           </View>
           <Text style={styles.date}>
-            {new Date(log.created_at).toLocaleDateString('es-ES', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
+            {new Date(log.created_at).toLocaleString('es-ES', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
             })}
           </Text>
         </Card>
@@ -110,9 +113,12 @@ export function SharedViewScreen({ logId }: SharedViewScreenProps) {
                 <Text style={styles.commentAttachment}>Adjunto: archivo</Text>
               ) : null}
               <Text style={styles.commentDate}>
-                {new Date(c.created_at).toLocaleDateString('es-ES', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
+                {new Date(c.created_at).toLocaleString('es-ES', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </Text>
             </View>

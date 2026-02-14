@@ -15,15 +15,42 @@ function parseSessionFromUrl(url: string): { access_token: string; refresh_token
   return null;
 }
 
+const OAUTH_MESSAGE_TYPE = 'CHECK_MY_SINTOMS_OAUTH';
+
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
 
   useEffect(() => {
+    // Web: si estamos en la ventana emergente del OAuth, enviamos los tokens a la ventana original y cerramos
+    if (typeof window !== 'undefined' && window.opener != null) {
+      const href = window.location?.href;
+      if (href) {
+        const tokens = parseSessionFromUrl(href);
+        if (tokens) {
+          try {
+            const origin = window.location?.origin ?? '';
+            window.opener.postMessage({ type: OAUTH_MESSAGE_TYPE, tokens }, origin);
+          } catch {
+            // Opener cerrado o postMessage no permitido
+          }
+        }
+      }
+      window.close();
+      return;
+    }
+
     let cancelled = false;
     (async () => {
-      const url = await Linking.getInitialURL();
-      if (cancelled || !url || !url.includes('auth/callback')) {
+      let url: string | null = null;
+      try {
+        url = await Linking.getInitialURL();
+      } catch {
+        setStatus('error');
+        router.replace('/(auth)/login');
+        return;
+      }
+      if (cancelled || !url || typeof url !== 'string' || !url.includes('auth/callback')) {
         if (!cancelled) {
           setStatus('error');
           router.replace('/(auth)/login');
@@ -49,7 +76,11 @@ export default function AuthCallbackScreen() {
         return;
       }
       setStatus('ok');
-      router.replace('/(tabs)');
+      try {
+        router.replace('/(tabs)');
+      } catch {
+        router.replace('/(auth)/login');
+      }
     })();
     return () => {
       cancelled = true;

@@ -4,6 +4,8 @@ export interface HealthLogForPatient {
   id: string;
   symptom_id: string | null;
   symptom_name: string;
+  /** IDs de sub-síntomas ("Otro síntoma"); resolver a nombres con symptoms_master si se necesita. */
+  secondary_symptom_ids: string[];
   pain_level: number | null;
   created_at: string;
   context: string | null;
@@ -21,7 +23,7 @@ export async function fetchHealthLogsForPatient(
 ): Promise<HealthLogForPatient[]> {
   const { data, error } = await supabase
     .from('health_logs')
-    .select('id, symptom_id, pain_level, created_at, context, blood_pressure, heart_rate, oxygen_saturation, symptoms_master(name)')
+    .select('id, symptom_id, secondary_symptom_ids, pain_level, created_at, context, blood_pressure, heart_rate, oxygen_saturation, symptoms_master(name)')
     .eq('patient_id', userId)
     .order('created_at', { ascending: false });
 
@@ -29,6 +31,7 @@ export async function fetchHealthLogsForPatient(
   const rows = (data ?? []) as Array<{
     id: string;
     symptom_id: string | null;
+    secondary_symptom_ids?: string[] | null;
     pain_level: number | null;
     created_at: string;
     context: string | null;
@@ -45,6 +48,7 @@ export async function fetchHealthLogsForPatient(
       id: r.id,
       symptom_id: r.symptom_id,
       symptom_name: name ?? 'Síntoma',
+      secondary_symptom_ids: Array.isArray(r.secondary_symptom_ids) ? r.secondary_symptom_ids : [],
       pain_level: r.pain_level,
       created_at: r.created_at,
       context: r.context,

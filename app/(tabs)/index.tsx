@@ -9,10 +9,39 @@ import { fetchHealthLogsForPatient, sharedLogGet } from '@/src/useCases';
 
 const MAX_LOGS_FOR_PRESCRIPTION_CHECK = 20;
 
+/** Longitudes típicas para partir nombre+apellidos pegados (sin mayúsculas en medio). Se usa la primera que toque según tamaño del string. */
+const FALLBACK_FIRST_LEN = 7;
+const FALLBACK_NEXT_LENS = [6, 5, 4];
+const FALLBACK_THRESHOLD = 9;
+
+function splitPastedName(s: string, firstLen: number, nextLens: number[]): string {
+  if (s.length <= FALLBACK_THRESHOLD) return s;
+  const len = firstLen;
+  const first = s.slice(0, len);
+  const rest = s.slice(len);
+  const nextLen = nextLens[0] ?? 4;
+  const restFormatted = splitPastedName(rest, nextLen, nextLens.slice(1));
+  return restFormatted ? `${first} ${restFormatted}` : first;
+}
+
+/** Separa nombre y apellidos cuando vienen juntos: mayúsculas, guiones bajos, o fallback si todo junto sin mayúsculas. */
+function formatDisplayName(name: string): string {
+  if (!name || typeof name !== 'string') return name;
+  let s = name.replace(/_/g, ' ');
+  s = s.replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2');
+  s = s.replace(/([A-ZÁÉÍÓÚÑ])([A-ZÁÉÍÓÚÑ][a-záéíóúñ])/g, '$1 $2');
+  if (!/ /.test(s) && s.length > FALLBACK_THRESHOLD) {
+    const firstLen = s.length > 14 ? FALLBACK_FIRST_LEN : 4;
+    s = splitPastedName(s, firstLen, FALLBACK_NEXT_LENS);
+  }
+  return s.trim();
+}
+
 export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
-  const displayName = user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'Paciente';
+  const rawName = user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'Paciente';
+  const displayName = formatDisplayName(rawName);
   const userId = user?.id ?? '';
 
   const { data: logs = [], isLoading } = useQuery({
@@ -84,7 +113,7 @@ export default function HomeTab() {
                   <Text style={styles.painText}>{log.pain_level ?? '–'}</Text>
                 </View>
                 <Text style={styles.logDate}>
-                  {new Date(log.created_at).toLocaleDateString('es-ES', { dateStyle: 'short' })}
+                  {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </Text>
               </Pressable>
               <Pressable

@@ -47,7 +47,9 @@ El objetivo es que el paciente pueda enviar al médico la URL de la vista compar
 **Resumen de Mejores Prácticas AplicadasAreaPráctica / PrincipioBeneficioFrontendAtomic Design**Componentes reutilizables (Botones, Inputs) en Web y Mobile.**BackendDRY (Don't Repeat Yourself)**Validaciones de salud centralizadas en una sola función.**DBNormalización**Evita duplicidad de nombres de síntomas y permite análisis de datos futuro.**SeguridadLeast Privilege**El link compartido solo da acceso al síntoma específico, no a todo el historial.
 
 **Login con Google (OAuth)**  
-En Supabase: **Authentication → URL Configuration → Redirect URLs** hay que añadir la URL de callback de la app para que el login con Google funcione:
-- **Producción / build:** `checkmysintoms://auth/callback` (scheme definido en `app.json`).
-- **Desarrollo (Expo Go / dev):** la URL que devuelve `Linking.createURL('auth/callback')` en tu entorno (p. ej. `exp://192.168.x.x:8081/--/auth/callback`). Puedes loguearla en consola al pulsar "Continuar con Google" si no estás seguro.
-La ruta `app/auth/callback.tsx` recibe el redirect, parsea `access_token` y `refresh_token` del hash, llama a `supabase.auth.setSession` y redirige a `/(tabs)`.
+La app usa **`Linking.createURL('auth/callback')`** y **`WebBrowser.maybeCompleteAuthSession()`** al cargar ([Supabase Native Mobile Deep Linking](https://supabase.com/docs/guides/auth/native-mobile-deep-linking)). En Supabase → **Authentication → URL Configuration**:
+
+- **Desarrollo:** en **Site URL** se deja la URL de Expo Go, p. ej. `exp://192.168.0.147:8081/--/auth/callback` (IP según tu red). En **Redirect URLs** añadir esa misma URL y/o `exp://**` (wildcard) y opcionalmente `checkmysintoms://auth/callback`.
+- **Producción:** **Site URL** y **Redirect URLs** deben cambiarse a la URL de la app en producción (dominio web o scheme del build, ej. `checkmysintoms://auth/callback`).
+
+Si la URL enviada no está en la lista, Supabase usa Site URL (p. ej. localhost) y en el móvil falla. La ruta `app/auth/callback.tsx` recibe el redirect, parsea tokens del hash, hace `setSession` y redirige a `/(tabs)`.

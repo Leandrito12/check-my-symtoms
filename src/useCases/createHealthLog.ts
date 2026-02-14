@@ -3,6 +3,8 @@ import { supabase } from '@/src/infrastructure/supabase';
 export interface CreateHealthLogPayload {
   patient_id: string;
   symptom_id?: string | null;
+  /** UUIDs de sub-síntomas ("Otro síntoma"); deben existir en symptoms_master. */
+  secondary_symptom_ids?: string[] | null;
   pain_level?: number | null;
   context?: string | null;
   blood_pressure?: string | null;
@@ -26,6 +28,7 @@ export async function createHealthLog(payload: CreateHealthLogPayload): Promise<
     .insert({
       patient_id: payload.patient_id,
       symptom_id: payload.symptom_id ?? null,
+      secondary_symptom_ids: payload.secondary_symptom_ids ?? [],
       pain_level: payload.pain_level ?? null,
       context: payload.context ?? null,
       blood_pressure: payload.blood_pressure ?? null,

@@ -2,13 +2,14 @@
  * Contratos de API (Edge Functions) – según docs/swagger.md
  */
 
+/** Body para process-health-log. symptom_id obligatorio desde el front. Opcionales: "" para strings vacíos, null para numéricos sin valor. */
 export interface ProcessHealthLogRequest {
-  symptom_id?: string;
-  pain_level?: number;
-  context?: string;
-  blood_pressure?: string;
-  heart_rate?: number;
-  oxygen_saturation?: number;
+  symptom_id: string;
+  pain_level: number | null;
+  context: string;
+  blood_pressure: string;
+  heart_rate: number | null;
+  oxygen_saturation: number | null;
 }
 
 export interface ProcessHealthLogResponse {

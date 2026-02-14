@@ -1,18 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  Modal,
-  FlatList,
+  ScrollView,
   StyleSheet,
-  type ListRenderItem,
+  Keyboard,
 } from 'react-native';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import type { SymptomMaster } from '@/src/domain/types';
 
 const MIN_TAP = SafeHarbor.spacing.minTapTarget;
+const DROPDOWN_MAX_HEIGHT = 220;
 
 interface SymptomDropdownProps {
   options: SymptomMaster[];
@@ -20,6 +20,11 @@ interface SymptomDropdownProps {
   onChange: (item: SymptomMaster) => void;
   onCreateOption?: (name: string) => Promise<SymptomMaster | null>;
   placeholder?: string;
+  /** Modo "solo agregar": al seleccionar/crear se llama onAdd y se limpia el input (para sub-síntomas). */
+  addOnly?: boolean;
+  onAdd?: (item: SymptomMaster) => void;
+  /** Estado de error/obligatorio no cumplido: borde y aura en color alert. */
+  invalid?: boolean;
 }
 
 export function SymptomDropdown({
@@ -28,10 +33,17 @@ export function SymptomDropdown({
   onChange,
   onCreateOption,
   placeholder = 'Escribe o selecciona...',
+  addOnly = false,
+  onAdd,
+  invalid = false,
 }: SymptomDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(value?.name ?? '');
+  const [focused, setFocused] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (!addOnly && value?.name != null) setSearch(value.name);
+  }, [addOnly, value?.name]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -45,10 +57,20 @@ export function SymptomDropdown({
     return !options.some((o) => o.name.toLowerCase() === q.toLowerCase());
   }, [search, options, onCreateOption]);
 
+  const showDropdown = focused && (search.length > 0 || filtered.length > 0);
+
   const handleSelect = (item: SymptomMaster) => {
+    if (addOnly && onAdd) {
+      onAdd(item);
+      setSearch('');
+      setFocused(false);
+      Keyboard.dismiss();
+      return;
+    }
     onChange(item);
-    setOpen(false);
-    setSearch('');
+    setSearch(item.name);
+    setFocused(false);
+    Keyboard.dismiss();
   };
 
   const handleCreate = async () => {
@@ -58,141 +80,148 @@ export function SymptomDropdown({
     try {
       const created = await onCreateOption(name);
       if (created) {
+        if (addOnly && onAdd) {
+          onAdd(created);
+          setSearch('');
+          setFocused(false);
+          Keyboard.dismiss();
+          return;
+        }
         onChange(created);
-        setOpen(false);
-        setSearch('');
+        setSearch(created.name);
+        setFocused(false);
+        Keyboard.dismiss();
       }
     } finally {
       setCreating(false);
     }
   };
 
-  const renderItem: ListRenderItem<SymptomMaster> = ({ item }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.option,
-        { backgroundColor: pressed ? SafeHarbor.colors.background : SafeHarbor.colors.white },
-      ]}
-      onPress={() => handleSelect(item)}
-    >
-      <Text style={styles.optionText} numberOfLines={1}>{item.name}</Text>
-    </Pressable>
-  );
-
   return (
     <View style={styles.wrapper}>
-      <Pressable
+      <View
         style={[
-          styles.trigger,
-          open && styles.triggerFocused,
-          { minHeight: MIN_TAP },
+          styles.inputRow,
+          focused && styles.inputRowFocused,
+          invalid && !focused && styles.inputRowInvalid,
         ]}
-        onPress={() => setOpen(true)}
       >
-        <Text style={[styles.triggerText, !value && styles.placeholder]}>
-          {value ? value.name : placeholder}
-        </Text>
-        <View style={styles.addIcon}>
-          <Text style={styles.addIconText}>+</Text>
-        </View>
-      </Pressable>
-
-      <Modal visible={open} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setOpen(false)}>
-          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar..."
-              placeholderTextColor={SafeHarbor.colors.border}
-              value={search}
-              onChangeText={setSearch}
-              autoFocus
-            />
-            <FlatList
-              data={filtered}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              keyboardShouldPersistTaps="handled"
-              ListFooterComponent={
-                showCreate ? (
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.createOption,
-                      { opacity: pressed ? 0.8 : 1 },
-                    ]}
-                    onPress={handleCreate}
-                    disabled={creating}
-                  >
-                    <Text style={styles.createOptionText}>
-                      {creating ? 'Agregando...' : `Agregar nuevo: "${search.trim()}"`}
-                    </Text>
-                  </Pressable>
-                ) : null
-              }
-            />
-          </View>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor={SafeHarbor.colors.border}
+          value={search}
+          onChangeText={setSearch}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 200)}
+          editable
+        />
+        <Pressable
+          style={[styles.addIcon, showCreate && styles.addIconActive]}
+          onPress={handleCreate}
+          disabled={!showCreate || creating}
+        >
+          <Text style={styles.addIconText}>{creating ? '…' : '+'}</Text>
         </Pressable>
-      </Modal>
+      </View>
+      {showDropdown ? (
+        <View style={styles.dropdown}>
+          <ScrollView
+            style={styles.dropdownList}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={true}
+          >
+            {filtered.map((item) => (
+              <Pressable
+                key={item.id}
+                style={({ pressed }) => [
+                  styles.option,
+                  { backgroundColor: pressed ? SafeHarbor.colors.background : SafeHarbor.colors.white },
+                ]}
+                onPress={() => handleSelect(item)}
+              >
+                <Text style={styles.optionText} numberOfLines={1}>{item.name}</Text>
+              </Pressable>
+            ))}
+            {showCreate ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.createOption,
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+                onPress={handleCreate}
+                disabled={creating}
+              >
+                <Text style={styles.createOptionText}>
+                  {creating ? 'Agregando...' : `Agregar nuevo: "${search.trim()}"`}
+                </Text>
+              </Pressable>
+            ) : null}
+          </ScrollView>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 12 },
-  trigger: {
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: SafeHarbor.colors.border,
     borderRadius: SafeHarbor.spacing.cardRadius,
-    paddingHorizontal: 14,
     backgroundColor: SafeHarbor.colors.white,
+    minHeight: MIN_TAP,
   },
-  triggerFocused: {
+  inputRowFocused: {
     borderColor: SafeHarbor.colors.primary,
     borderWidth: 2,
   },
-  triggerText: {
+  inputRowInvalid: {
+    borderColor: SafeHarbor.colors.alert,
+    borderWidth: 2,
+    backgroundColor: `${SafeHarbor.colors.alert}06`,
+  },
+  input: {
     flex: 1,
     fontSize: 16,
     color: SafeHarbor.colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  placeholder: { color: SafeHarbor.colors.border },
   addIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: SafeHarbor.colors.secondary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: SafeHarbor.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
+    opacity: 0.7,
+  },
+  addIconActive: {
+    backgroundColor: SafeHarbor.colors.secondary,
+    opacity: 1,
   },
   addIconText: {
     color: SafeHarbor.colors.white,
     fontSize: 18,
     fontWeight: '700',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: SafeHarbor.colors.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '70%',
-    paddingBottom: 24,
-  },
-  searchInput: {
+  dropdown: {
+    marginTop: 4,
     borderWidth: 1,
     borderColor: SafeHarbor.colors.border,
     borderRadius: SafeHarbor.spacing.cardRadius,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    margin: 16,
-    fontSize: 16,
-    color: SafeHarbor.colors.text,
+    backgroundColor: SafeHarbor.colors.white,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
+    overflow: 'hidden',
+  },
+  dropdownList: {
+    maxHeight: DROPDOWN_MAX_HEIGHT,
   },
   option: {
     paddingVertical: 14,

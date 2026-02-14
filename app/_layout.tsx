@@ -5,13 +5,21 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+
+WebBrowser.maybeCompleteAuthSession();
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { PrescriptionViewerProvider } from '@/src/contexts/PrescriptionViewerContext';
+import { supabase } from '@/src/infrastructure/supabase';
+
+const OAUTH_MESSAGE_TYPE = 'CHECK_MY_SINTOMS_OAUTH';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -74,19 +82,36 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+
+  // Web: cuando el popup de OAuth envía la sesión, la aplicamos en esta ventana y redirigimos al dashboard
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const handler = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== OAUTH_MESSAGE_TYPE || !event.data?.tokens) return;
+      const { access_token, refresh_token } = event.data.tokens;
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      if (!error) router.replace('/(tabs)');
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [router]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="v" options={{ presentation: 'card' }} />
-        <Stack.Screen name="log" options={{ presentation: 'card' }} />
-        <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="v" options={{ presentation: 'card' }} />
+          <Stack.Screen name="log" options={{ presentation: 'card' }} />
+          <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

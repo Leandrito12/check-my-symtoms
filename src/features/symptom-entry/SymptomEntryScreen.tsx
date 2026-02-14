@@ -9,8 +9,10 @@ import {
   Alert,
   Image,
   Pressable,
-  } from 'react-native';
+  Modal,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import type { PainLevel } from '@/src/domain/types';
@@ -29,16 +31,18 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { Button, Input, Card, SymptomDropdown, PainSlider, EmergencyAlert } from '@/src/components/ui';
 
 export default function SymptomEntryScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [symptom, setSymptom] = useState<SymptomMaster | null>(null);
+  const [subSymptoms, setSubSymptoms] = useState<SymptomMaster[]>([]);
   const [context, setContext] = useState('');
   const [painLevel, setPainLevel] = useState<PainLevel>(0);
   const [bloodPressure, setBloodPressure] = useState('');
   const [heartRate, setHeartRate] = useState('');
   const [oxygenSat, setOxygenSat] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: symptoms = [] } = useQuery({
@@ -91,11 +95,11 @@ export default function SymptomEntryScreen() {
     try {
       const result = await validateMutation.mutateAsync({
         symptom_id: symptom.id,
-        pain_level: painLevel,
-        context: context.trim() || undefined,
-        blood_pressure: bloodPressure.trim() || undefined,
-        heart_rate: heartRate ? parseInt(heartRate, 10) : undefined,
-        oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : undefined,
+        pain_level: painLevel ?? null,
+        context: context.trim() || '',
+        blood_pressure: bloodPressure.trim() || '',
+        heart_rate: heartRate ? parseInt(heartRate, 10) : null,
+        oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null,
       });
       if (result.emergency) {
         Alert.alert(
@@ -108,6 +112,7 @@ export default function SymptomEntryScreen() {
       const log = await createHealthLog({
         patient_id: user.id,
         symptom_id: symptom.id,
+        secondary_symptom_ids: subSymptoms.length > 0 ? subSymptoms.map((s) => s.id) : [],
         pain_level: painLevel,
         context: context.trim() || null,
         blood_pressure: bloodPressure.trim() || null,
@@ -122,9 +127,10 @@ export default function SymptomEntryScreen() {
         await updateHealthLogImagePath(log.id, imagePath);
       }
 
+      queryClient.invalidateQueries({ queryKey: ['health-logs', user.id] });
       setPhotoUri(null);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
+      setSubSymptoms([]);
+      setShowSuccessModal(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al validar o guardar. Revisa tu conexión.';
       Alert.alert('Error', msg);
@@ -135,7 +141,42 @@ export default function SymptomEntryScreen() {
 
   const showEmergency = shouldShowEmergencyAlert(painLevel);
 
+  const goToHome = () => {
+    setShowSuccessModal(false);
+    setSymptom(null);
+    setContext('');
+    setPainLevel(0);
+    setBloodPressure('');
+    setHeartRate('');
+    setOxygenSat('');
+    setSubSymptoms([]);
+    setPhotoUri(null);
+    router.replace('/(tabs)');
+  };
+
   return (
+    <>
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={goToHome}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>✓ Síntoma guardado</Text>
+            <Text style={styles.modalMessage}>
+              El registro se guardó correctamente. Puedes verlo en Inicio.
+            </Text>
+            <Button
+              title="Volver al inicio"
+              onPress={goToHome}
+              fullWidth
+              style={styles.modalButton}
+            />
+          </View>
+        </View>
+      </Modal>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
@@ -148,14 +189,51 @@ export default function SymptomEntryScreen() {
         <Text style={styles.title}>Registra tu Síntoma</Text>
 
         <Card style={styles.card}>
-          <Text style={styles.fieldLabel}>Síntoma Principal</Text>
+          <View style={styles.requiredFieldWrapper}>
+            <Text style={styles.fieldLabel}>Síntoma Principal</Text>
+            <SymptomDropdown
+              options={symptoms}
+              value={symptom}
+              onChange={setSymptom}
+              onCreateOption={handleCreateSymptom}
+              placeholder="Escribe o selecciona..."
+              invalid={!symptom}
+            />
+            {!symptom && (
+              <Text style={styles.requiredLegend}>Campo obligatorio</Text>
+            )}
+          </View>
+
+          <Text style={styles.fieldLabel}>Otro síntoma</Text>
           <SymptomDropdown
             options={symptoms}
-            value={symptom}
-            onChange={setSymptom}
+            value={null}
+            onChange={() => {}}
             onCreateOption={handleCreateSymptom}
-            placeholder="Escribe o selecciona..."
+            placeholder="Escribe o agrega otro síntoma..."
+            addOnly
+            onAdd={(item) => {
+              if (!subSymptoms.some((s) => s.id === item.id)) {
+                setSubSymptoms((prev) => [...prev, item]);
+              }
+            }}
           />
+          {subSymptoms.length > 0 ? (
+            <View style={styles.badgesRow}>
+              {subSymptoms.map((s) => (
+                <View key={s.id} style={styles.badge}>
+                  <Text style={styles.badgeText} numberOfLines={1}>{s.name}</Text>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => setSubSymptoms((prev) => prev.filter((x) => x.id !== s.id))}
+                    style={({ pressed }) => [styles.badgeRemove, pressed && styles.badgeRemovePressed]}
+                  >
+                    <Text style={styles.badgeRemoveText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           <Input
             label="Contexto (opcional)"
@@ -216,15 +294,16 @@ export default function SymptomEntryScreen() {
           </View>
 
           <Button
-            title={saveSuccess ? '✓ Guardado' : 'Guardar Síntoma'}
+            title="Guardar Síntoma"
             onPress={handleSave}
             fullWidth
-            disabled={validateMutation.isPending || isSaving}
-            style={[styles.saveButton, saveSuccess && styles.saveButtonSuccess]}
+            disabled={!symptom || validateMutation.isPending || isSaving}
+            style={styles.saveButton}
           />
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -238,6 +317,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: { marginBottom: 16 },
+  requiredFieldWrapper: {
+    marginBottom: 4,
+  },
+  requiredLegend: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: SafeHarbor.colors.alert,
+    marginTop: 6,
+    marginLeft: 2,
+  },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '500',
@@ -246,6 +335,42 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 12 },
   halfInput: { flex: 1 },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: SafeHarbor.colors.commentBg,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    paddingVertical: 6,
+    paddingLeft: 12,
+    paddingRight: 4,
+    maxWidth: '100%',
+  },
+  badgeText: {
+    fontSize: 14,
+    color: SafeHarbor.colors.text,
+    marginRight: 4,
+    maxWidth: 160,
+  },
+  badgeRemove: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: SafeHarbor.colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeRemovePressed: { opacity: 0.7 },
+  badgeRemoveText: {
+    fontSize: 12,
+    color: SafeHarbor.colors.text,
+    fontWeight: '700',
+  },
   photoSection: { marginBottom: 12 },
   photoPreview: {
     flexDirection: 'row',
@@ -271,7 +396,34 @@ const styles = StyleSheet.create({
   },
   attachButton: { marginBottom: 0 },
   saveButton: { marginTop: 8 },
-  saveButtonSuccess: {
-    backgroundColor: SafeHarbor.colors.secondary,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: SafeHarbor.colors.white,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: SafeHarbor.colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: SafeHarbor.colors.text,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalButton: {
+    marginTop: 0,
   },
 });

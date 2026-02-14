@@ -11,21 +11,21 @@ En la app con `@supabase/supabase-js` se puede usar:
 
 ## 1. process-health-log
 
-**Validar signos vitales antes de guardar el síntoma.** Devuelve si hay urgencia (dolor ≥ 8 o saturación < 90). No escribe en base de datos.
+**Validar signos vitales antes de guardar el síntoma.** Devuelve si hay urgencia (dolor ≥ 8 o saturación < 90). No escribe en base de datos. La función valida que quien llama sea un usuario autenticado (JWT).
 
 | Dato | Valor |
 |------|--------|
 | **Método** | `POST` |
 | **URL** | `/functions/v1/process-health-log` |
-| **Authorization** | Opcional. Recomendado enviar Bearer JWT si el usuario está logueado (el SDK de Supabase lo envía al usar `supabase.functions.invoke`). |
+| **Authorization** | **Requerido.** Bearer JWT del usuario autenticado. La función valida el token internamente (se despliega con `--no-verify-jwt`). Sin JWT válido responde 401. |
 | **Headers** | `Content-Type: application/json` |
-| **Body** | JSON (todos los campos opcionales) |
+| **Body** | JSON. **symptom_id** obligatorio; el resto opcional. |
 
 ### Body (JSON)
 
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
-| symptom_id | string (UUID) | No | ID del síntoma en `symptoms_master` |
+| symptom_id | string (UUID) | **Sí** | ID del síntoma principal en `symptoms_master`. El frontend debe enviarlo siempre. |
 | pain_level | number (0–10) | No | Nivel de dolor |
 | context | string | No | Contexto del malestar |
 | blood_pressure | string | No | Ej. "120/80" |
@@ -63,7 +63,52 @@ En la app con `@supabase/supabase-js` se puede usar:
 }
 ```
 
-**Otros códigos:** 400 (body inválido), 405 (método no permitido). En error suele devolverse `{ "error": "...", "detail": "..." }`.
+**Otros códigos:** 400 (falta `symptom_id` o body no es JSON), **401** (falta Authorization o token inválido/expirado; la función valida el JWT manualmente), 502 (función no desplegada o caída), etc. En el frontend se loguea **status** y **body** (`error.context?.status`, `error.context?.body`) para depurar.
+
+#### 401 – Autorización
+
+La Edge Function devuelve **401** cuando falta el header `Authorization` o el token es inválido/expirado. Valida el JWT manualmente con `auth.getUser()`. El frontend debe llamar con el cliente de Supabase con sesión iniciada para que el SDK envíe el JWT del usuario; no sobrescribir el header. Despliegue del backend: `supabase functions deploy process-health-log --no-verify-jwt` (el gateway no verifica JWT; la función sí).
+
+### Cómo la envía el frontend (ejemplo real)
+
+El frontend usa `supabase.functions.invoke('process-health-log', { body })`. El SDK añade `Authorization: Bearer <JWT del usuario>` si hay sesión. No pasar headers custom para no reemplazar el JWT.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` |
+| **URL** | `{EXPO_PUBLIC_SUPABASE_URL}/functions/v1/process-health-log` |
+| **Headers** | `Content-Type: application/json`, `Authorization: Bearer <JWT>` (añadido por el SDK con sesión) |
+| **Body** | Objeto JSON. El front **siempre** envía al menos `symptom_id` (botón Guardar deshabilitado si no hay síntoma principal). |
+
+**Forma del body:** El front arma siempre el mismo objeto (mismas claves). Los opcionales de **texto** se envían como `""` cuando estén vacíos; los **numéricos** opcionales como `null` cuando no haya valor. Así no hay `undefined`, el JSON serializa bien y el backend acepta `""` como “sin valor” en esos campos.
+
+**Ejemplo con valores:**
+
+```json
+{
+  "symptom_id": "550e8400-e29b-41d4-a716-446655440000",
+  "pain_level": 2,
+  "context": "me pasó luego de comer un choripán",
+  "blood_pressure": "120/80",
+  "heart_rate": 72,
+  "oxygen_saturation": 98
+}
+```
+
+**Ejemplo con campos vacíos** (strings en `""`, numéricos en `null`):
+
+```json
+{
+  "symptom_id": "550e8400-e29b-41d4-a716-446655440000",
+  "pain_level": 0,
+  "context": "",
+  "blood_pressure": "",
+  "heart_rate": null,
+  "oxygen_saturation": null
+}
+```
+
+En código: `context: context?.trim() ?? ""`, `blood_pressure: bloodPressure?.trim() ?? ""`, `heart_rate: heartRate ? parseInt(heartRate, 10) : null`, `oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null`. El backend exige `symptom_id` y responde **200** con `{ "emergency": boolean, "reason": string | null, "message": string | null }`. Síntoma secundario, presión, FC, saturación y foto no se envían a esta función (solo validación de urgencia); son opcionales en el **insert** a `health_logs` (sección 6).
 
 ---
 
@@ -78,6 +123,8 @@ En la app con `@supabase/supabase-js` se puede usar:
 | **Authorization** | No |
 | **Headers** | Ninguno obligatorio |
 | **Query** | `id` **o** `log_id` (UUID del `health_log`) |
+
+El backend lee **solo** desde la query string (`url.searchParams.get('id')` / `'log_id'`), no desde el body. En el frontend se llama con `fetch(..., ?id=...)` y, si hay sesión, con `Authorization: Bearer <JWT>` para que `auth.getUser()` en backend reciba un token válido.
 
 ### Respuesta esperada
 
@@ -317,7 +364,7 @@ No son Edge Functions. Se usa el cliente `@supabase/supabase-js` con JWT contra 
 
 | Recurso | Operación | Auth | Uso en la app |
 |---------|-----------|------|----------------|
-| **health_logs** | insert | **Bearer obligatorio** | Crear registro de síntoma tras process-health-log con `emergency: false`. Campos: `patient_id`, `symptom_id`, `pain_level`, `context`, `blood_pressure`, `heart_rate`, `oxygen_saturation`, `image_path`. Si se adjunta foto: crear log primero, subir a Storage, luego actualizar `image_path` vía update. |
+| **health_logs** | insert | **Bearer obligatorio** | Crear registro de síntoma tras process-health-log con `emergency: false`. Campos: `patient_id`, `symptom_id` (principal), `secondary_symptom_ids` (opcional, array de UUID de sub-síntomas; omitir o `[]` si no hay), `pain_level`, `context`, `blood_pressure`, `heart_rate`, `oxygen_saturation`, `image_path`. Si hay sub-síntomas (input "Otro síntoma" + badges), enviar `secondary_symptom_ids` con los UUID. Ejemplo body: `{ ..., symptom_id, secondary_symptom_ids: form.subSymptomIds ?? [] }`. Si se adjunta foto: crear log primero, subir a Storage, luego actualizar `image_path` vía update. |
 | **health_logs** | update | **Bearer obligatorio** | Actualizar `image_path` tras subir la foto al bucket (mismo usuario). |
 | **Storage bucket `symptoms-photos`** | upload | **Bearer obligatorio** | Ruta: `{patient_id}/{log_id}/symptom.jpg`. Compresión en cliente (expo-image-manipulator: max width 1024px, JPEG 0.8) antes de subir. |
 | **symptoms_master** | select | **Bearer obligatorio** | Lista para dropdown: `.select('id, name').order('name')`. |
@@ -328,6 +375,7 @@ Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/crea
 **Estado backend (Fase 3 – ya cubierto):**  
 - **Visor de PDF in-app:** El backend está cubierto. La Edge Function **prescription-signed-url** (GET o POST con JWT) devuelve una `url` temporal (24 h). El frontend llama a ese endpoint y muestra la receta **dentro de la app** en un modal con **WebView** (`react-native-webview`), sin abrir el navegador externo. Flujo: "Ver receta" → `prescriptionSignedUrl` → `PrescriptionViewerContext.setPrescriptionUrl(url)` → navegación a `/prescription-viewer` (modal) → WebView con la URL firmada.  
 - **Índices para historial:** Ya existen en base de datos: `idx_health_logs_patient_created` en `(patient_id, created_at desc)` y `idx_health_logs_patient_symptom_created` en `(patient_id, symptom_id, created_at desc)`. Las consultas de historial por paciente y rango de fechas están cubiertas.
+- **Sub-síntomas (secondary_symptom_ids):** En insert, campo opcional `secondary_symptom_ids` (array de UUID, valores en `symptoms_master`). Al leer (select de `health_logs`), PostgREST devuelve `secondary_symptom_ids` como array de strings; el frontend puede resolver IDs a nombres con `symptoms_master` para detalle o listados.
 
 ---
 
@@ -335,7 +383,7 @@ Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/crea
 
 | Recurso | Tipo | Auth | Uso |
 |---------|------|------|-----|
-| process-health-log | Edge Function POST | Opcional (Bearer) | Validar urgencia antes de guardar síntoma |
+| process-health-log | Edge Function POST | **Bearer JWT obligatorio** | Validar urgencia antes de guardar; la función valida el JWT manualmente |
 | **health_logs** (insert) | Tabla Supabase | **Bearer obligatorio** | Crear registro de síntoma tras validar |
 | **health_logs** (update) | Tabla Supabase | **Bearer obligatorio** | Actualizar image_path tras subir foto |
 | **symptoms-photos** (upload) | Storage Supabase | **Bearer obligatorio** | Subir foto del síntoma (comprimida en cliente) |

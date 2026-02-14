@@ -1,8 +1,28 @@
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/src/infrastructure/supabase';
+
+/** URL de redirect para OAuth. En móvil evitamos localhost; en Supabase añadir exp://** y checkmysintoms://auth/callback. */
+function getOAuthRedirectUrl(): string {
+  if (Platform.OS === 'web') {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback`
+        : '';
+    if (!url) throw new Error('No se pudo obtener la URL de callback.');
+    return url;
+  }
+  const fromLinking = Linking.createURL('auth/callback');
+  if (!fromLinking || fromLinking.includes('localhost')) {
+    const scheme = Constants.expoConfig?.scheme ?? 'checkmysintoms';
+    return `${scheme}://auth/callback`;
+  }
+  return fromLinking;
+}
 
 function parseSessionFromUrl(url: string): { access_token: string; refresh_token: string } | null {
   const hash = url.includes('#') ? url.split('#')[1] : '';
@@ -43,7 +63,10 @@ export function useAuth() {
   };
 
   const signInWithGoogle = async () => {
-    const redirectUrl = Linking.createURL('auth/callback');
+    const redirectUrl = getOAuthRedirectUrl();
+    if (__DEV__) {
+      console.log('[Auth] Redirect URL enviada a Supabase:', redirectUrl);
+    }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -54,14 +77,20 @@ export function useAuth() {
     if (error) throw error;
     if (!data.url) throw new Error('No se pudo obtener la URL de Google.');
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-    if (result.type !== 'success' || !result.url) return;
-    const tokens = parseSessionFromUrl(result.url);
-    if (!tokens) throw new Error('No se recibió la sesión de Google.');
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-    });
-    if (sessionError) throw sessionError;
+    if (result.type === 'success' && result.url) {
+      const tokens = parseSessionFromUrl(result.url);
+      if (!tokens) throw new Error('No se recibió la sesión de Google.');
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+      });
+      if (sessionError) throw sessionError;
+      return;
+    }
+    // Android (y a veces iOS) puede devolver 'dismiss' aunque el login haya ido por deep link
+    const { data: { session: existingSession } } = await supabase.auth.getSession();
+    if (existingSession) return;
+    throw new Error('No se pudo completar el inicio de sesión con Google.');
   };
 
   const signUp = async (email: string, password: string, options?: { displayName?: string }) => {

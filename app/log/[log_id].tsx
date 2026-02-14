@@ -1,7 +1,9 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Share, RefreshControl } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { usePrescriptionViewer } from '@/src/contexts/PrescriptionViewerContext';
 import { getSharedViewUrl } from '@/src/utils/sharedViewUrl';
@@ -16,11 +18,13 @@ function getPainColor(level: number): string {
 }
 
 export default function PatientLogDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { log_id: logId } = useLocalSearchParams<{ log_id: string }>();
   const router = useRouter();
   const { setPrescriptionUrl } = usePrescriptionViewer();
+  const headerStyle = [styles.header, { paddingTop: Math.max(insets.top, 16) }];
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['shared-log', logId],
     queryFn: () => sharedLogGet(logId!),
     enabled: !!logId,
@@ -54,7 +58,7 @@ export default function PatientLogDetailScreen() {
 
   if (!logId) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <Text style={styles.errorText}>Falta el identificador del registro.</Text>
       </View>
     );
@@ -63,7 +67,7 @@ export default function PatientLogDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header} />
+        <View style={headerStyle} />
         <SkeletonLog />
       </View>
     );
@@ -71,12 +75,15 @@ export default function PatientLogDetailScreen() {
 
   if (error || !data) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <Text style={styles.errorText}>
           {error instanceof Error ? error.message : 'No se pudo cargar el registro.'}
         </Text>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Volver</Text>
+        <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={12}>
+          <View style={styles.backBtnRow}>
+            <Ionicons name="chevron-back" size={24} color={SafeHarbor.colors.primary} />
+            <Text style={styles.backBtnText}>Volver</Text>
+          </View>
         </Pressable>
       </View>
     );
@@ -86,16 +93,27 @@ export default function PatientLogDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <Text style={styles.headerBack}>← Volver</Text>
+      <View style={headerStyle}>
+        <Pressable onPress={() => router.back()} style={styles.headerBackTouchable} hitSlop={12}>
+          <View style={styles.headerBackRow}>
+            <Ionicons name="chevron-back" size={26} color={SafeHarbor.colors.white} />
+            <Text style={styles.headerBack}>Volver</Text>
+          </View>
         </Pressable>
         <Text style={styles.headerTitle}>Detalle del síntoma</Text>
       </View>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            tintColor={SafeHarbor.colors.white}
+            colors={[SafeHarbor.colors.primary]}
+          />
+        }
       >
         <Card style={styles.logCard}>
           <View style={styles.logRow}>
@@ -106,9 +124,12 @@ export default function PatientLogDetailScreen() {
           </View>
           {log.context ? <Text style={styles.context}>{log.context}</Text> : null}
           <Text style={styles.date}>
-            {new Date(log.created_at).toLocaleDateString('es-ES', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
+            {new Date(log.created_at).toLocaleString('es-ES', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
             })}
           </Text>
         </Card>
@@ -139,9 +160,12 @@ export default function PatientLogDetailScreen() {
                 </Pressable>
               ) : null}
               <Text style={styles.commentDate}>
-                {new Date(c.created_at).toLocaleDateString('es-ES', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
+                {new Date(c.created_at).toLocaleString('es-ES', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </Text>
             </View>
@@ -161,9 +185,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    minHeight: 52,
   },
-  headerBack: { fontSize: 16, color: SafeHarbor.colors.white, fontWeight: '500' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: SafeHarbor.colors.white },
+  headerBackTouchable: {
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  headerBackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  headerBack: { fontSize: 17, color: SafeHarbor.colors.white, fontWeight: '600' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: SafeHarbor.colors.white, flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 48 },
   logCard: { marginBottom: 24 },
@@ -233,5 +268,11 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   errorText: { fontSize: 16, color: SafeHarbor.colors.alert, textAlign: 'center' },
   backBtn: { marginTop: 16, paddingVertical: 10, paddingHorizontal: 20 },
-  backBtnText: { fontSize: 16, color: SafeHarbor.colors.primary, fontWeight: '600' },
+  backBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  backBtnText: { fontSize: 17, color: SafeHarbor.colors.primary, fontWeight: '600' },
 });

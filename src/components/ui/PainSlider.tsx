@@ -1,21 +1,13 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import type { PainLevel } from '@/src/domain/types';
-
-const MIN_TAP = SafeHarbor.spacing.minTapTarget;
-const LEVELS: PainLevel[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
 function getColor(level: number): string {
   if (level <= 3) return SafeHarbor.painLevelColors.calm;
   if (level <= 5) return SafeHarbor.painLevelColors.attention;
   return SafeHarbor.painLevelColors.alert;
-}
-
-function getFace(level: number): string {
-  if (level <= 2) return '😊';
-  if (level <= 5) return '😐';
-  return '😣';
 }
 
 interface PainSliderProps {
@@ -24,30 +16,30 @@ interface PainSliderProps {
   label?: string;
 }
 
+const LEVELS: PainLevel[] = [0, 1, 2, 3, 4, 5, 6, 7];
+
 export function PainSlider({ value, onChange, label = 'Nivel de Dolor (0-7)' }: PainSliderProps) {
+  const handleValueChange = (v: number) => {
+    const rounded = Math.round(v) as PainLevel;
+    const clamped = LEVELS.includes(rounded) ? rounded : (Math.min(7, Math.max(0, rounded)) as PainLevel);
+    onChange(clamped);
+  };
+
   return (
     <View style={styles.wrapper}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.sliderRow}>
-        {LEVELS.map((level) => {
-          const isSelected = value === level;
-          const color = getColor(level);
-          return (
-            <Pressable
-              key={level}
-              style={[
-                styles.thumb,
-                { backgroundColor: color, minWidth: MIN_TAP, minHeight: MIN_TAP },
-                isSelected && styles.thumbSelected,
-              ]}
-              onPress={() => onChange(level)}
-            >
-              <Text style={styles.face}>{getFace(level)}</Text>
-              <Text style={styles.number}>{level}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Slider
+        style={styles.slider}
+        minimumValue={0}
+        maximumValue={7}
+        step={1}
+        value={value}
+        onValueChange={handleValueChange}
+        minimumTrackTintColor={getColor(value)}
+        maximumTrackTintColor={SafeHarbor.colors.border}
+        thumbTintColor={getColor(value)}
+        tapToSeek
+      />
       <View style={styles.valueDisplay}>
         <View style={[styles.valueBadge, { backgroundColor: getColor(value) }]}>
           <Text style={styles.valueText}>{value}</Text>
@@ -65,27 +57,9 @@ const styles = StyleSheet.create({
     color: SafeHarbor.colors.text,
     marginBottom: 8,
   },
-  sliderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  thumb: {
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 4,
-  },
-  thumbSelected: {
-    borderWidth: 3,
-    borderColor: SafeHarbor.colors.text,
-  },
-  face: { fontSize: 14 },
-  number: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: SafeHarbor.colors.text,
+  slider: {
+    width: '100%',
+    height: 40,
   },
   valueDisplay: { alignItems: 'center', marginTop: 12 },
   valueBadge: {
