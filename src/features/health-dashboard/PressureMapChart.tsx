@@ -19,9 +19,11 @@ const COLOR_MAP = '#10B981';
 interface PressureMapChartProps {
   data: BloodPressurePoint[];
   emptyMessage?: string;
+  /** Altura explícita para el gráfico (evita fallos SVG/web con flex sin altura). */
+  height?: number;
 }
 
-export function PressureMapChart({ data, emptyMessage }: PressureMapChartProps) {
+export function PressureMapChart({ data, emptyMessage, height = CHART_HEIGHT }: PressureMapChartProps) {
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width - 48, 400);
   const font = useFont(require('../../../assets/fonts/SpaceMono-Regular.ttf'), 11);
@@ -62,7 +64,7 @@ export function PressureMapChart({ data, emptyMessage }: PressureMapChartProps) 
 
   return (
     <ChartCard title="Presión arterial (mmHg)">
-      <View style={[styles.chartWrap, { width: chartWidth, height: CHART_HEIGHT }]}>
+      <View style={[styles.chartWrap, { width: chartWidth, height }]}>
         <CartesianChart
           data={chartData}
           xKey="x"

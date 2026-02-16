@@ -16,8 +16,11 @@ import 'react-native-reanimated';
 WebBrowser.maybeCompleteAuthSession();
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { NavigationWrapper } from '@/components/NavigationWrapper';
 import { PrescriptionViewerProvider } from '@/src/contexts/PrescriptionViewerContext';
-import { setSessionWithTimeout, supabase } from '@/src/infrastructure/supabase';
+import { BreakpointProvider } from '@/src/contexts/BreakpointContext';
+import { setSessionWithTimeout } from '@/src/infrastructure/supabase';
+import { isAllowedReturnTo } from '@/src/constants/auth';
 
 const OAUTH_MESSAGE_TYPE = 'CHECK_MY_SINTOMS_OAUTH';
 
@@ -84,7 +87,7 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const router = useRouter();
 
-  // Web: cuando el popup de OAuth envía la sesión, la aplicamos en esta ventana y redirigimos al dashboard
+  // Web: cuando el popup de OAuth envía la sesión, la aplicamos en esta ventana y redirigimos (returnTo o dashboard)
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const handler = async (event: MessageEvent) => {
@@ -92,7 +95,14 @@ function RootLayoutNav() {
       if (event.data?.type !== OAUTH_MESSAGE_TYPE || !event.data?.tokens) return;
       const { access_token, refresh_token } = event.data.tokens;
       const { error } = await setSessionWithTimeout({ access_token, refresh_token });
-      if (!error) router.replace('/(tabs)');
+      if (error) return;
+      const params = new URLSearchParams(window.location.search);
+      const returnTo = params.get('returnTo');
+      if (returnTo && isAllowedReturnTo(returnTo)) {
+        router.replace(returnTo as never);
+      } else {
+        router.replace('/(tabs)');
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -101,19 +111,23 @@ function RootLayoutNav() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="v" options={{ presentation: 'card' }} />
-          <Stack.Screen name="log" options={{ presentation: 'card' }} />
-          <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="access" options={{ presentation: 'card' }} />
-          <Stack.Screen name="shared" options={{ presentation: 'card' }} />
-          <Stack.Screen name="doctor" options={{ presentation: 'card' }} />
-        </Stack>
+        <BreakpointProvider>
+          <NavigationWrapper>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="auth" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="v" options={{ presentation: 'card' }} />
+              <Stack.Screen name="log" options={{ presentation: 'card' }} />
+              <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="access" options={{ presentation: 'card' }} />
+              <Stack.Screen name="shared" options={{ presentation: 'card' }} />
+              <Stack.Screen name="doctor" options={{ presentation: 'card' }} />
+            </Stack>
+          </NavigationWrapper>
+        </BreakpointProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

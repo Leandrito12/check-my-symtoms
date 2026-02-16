@@ -15,15 +15,18 @@ interface SymptomTrendChartProps {
   emptyMessage?: string;
   /** Si true, el eje X muestra fechas (día/mes) en lugar del índice. */
   showDateLabels?: boolean;
+  /** Altura explícita para el gráfico (evita fallos SVG/web). */
+  height?: number;
 }
 
-const chartHeight = 200;
+const DEFAULT_CHART_HEIGHT = 200;
 
 export function SymptomTrendChart({
   title,
   data,
   emptyMessage,
   showDateLabels = false,
+  height = DEFAULT_CHART_HEIGHT,
 }: SymptomTrendChartProps) {
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width - 48, 400);
@@ -59,7 +62,7 @@ export function SymptomTrendChart({
   return (
     <View style={styles.chartCard}>
       <Text style={styles.chartTitle}>{title}</Text>
-      <View style={[styles.chartWrap, { width: chartWidth, height: chartHeight }]}>
+      <View style={[styles.chartWrap, { width: chartWidth, height }]}>
         <CartesianChart
           data={chartData}
           xKey="x"

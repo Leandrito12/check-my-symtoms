@@ -153,7 +153,17 @@ Si en los logs aparece **“URL en uso: placeholder.supabase.co (¡configura .en
 
 ---
 
-## 8. Si algo falla
+## 8. Referencias de datos (frontend)
+
+Para el equipo UI/UX y desarrollo, puntos de integración con el backend:
+
+- **Profiles:** La gestión de accesos (compartir historial con el médico) usa `profiles.share_code`. Se lee y actualiza desde la pantalla de Gestión de accesos (`AccessManagementScreen`). El médico introduce el código en `/doctor/request?code=...`.
+- **Analytics:** El dashboard médico consume un endpoint agregado que devuelve `patient_info`, `analytics` (historial, frecuencia de síntomas, anomalía) y la lista de `logs`. Ver **docs/swagger.md** para el contrato exacto.
+- **Clinical Records:** El backend acepta un `log_id` opcional al crear/actualizar notas clínicas, para vincular la nota a un registro de síntoma concreto.
+
+---
+
+## 9. Si algo falla
 
 - **“Unable to resolve module”:** ejecuta de nuevo `npm install` y reinicia `npm start`.
 - **Login/API no funcionan:** revisa que `.env` tenga la URL y la anon key correctas y que no haya espacios extra.

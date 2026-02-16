@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { SafeHarbor } from '@/constants/SafeHarbor';
-import { setSessionWithTimeout, supabase } from '@/src/infrastructure/supabase';
+import { setSessionWithTimeout } from '@/src/infrastructure/supabase';
+import { AUTH_RETURN_TO_KEY, isAllowedReturnTo } from '@/src/constants/auth';
 
 function parseSessionFromUrl(url: string): { access_token: string; refresh_token: string } | null {
   const hash = url.includes('#') ? url.split('#')[1] : '';
@@ -73,8 +74,14 @@ export default function AuthCallbackScreen() {
         return;
       }
       setStatus('ok');
+      let target = '/(tabs)';
+      if (typeof sessionStorage !== 'undefined') {
+        const stored = sessionStorage.getItem(AUTH_RETURN_TO_KEY);
+        if (stored && isAllowedReturnTo(stored)) target = stored;
+        sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
+      }
       try {
-        router.replace('/(tabs)');
+        router.replace(target as never);
       } catch {
         router.replace('/(auth)/login');
       }

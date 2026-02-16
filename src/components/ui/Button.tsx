@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet, type PressableProps } from 'react-native';
+import { Pressable, Text, StyleSheet, Platform, type PressableProps } from 'react-native';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 
 const MIN_TAP = SafeHarbor.spacing.minTapTarget;
@@ -36,6 +36,7 @@ export function Button({
         { backgroundColor: bg, minHeight: MIN_TAP, minWidth: MIN_TAP, opacity: disabled ? 0.6 : pressed ? 0.9 : 1 },
         fullWidth && styles.fullWidth,
         border && { borderWidth: 2, borderColor: SafeHarbor.colors.primary },
+        Platform.OS === 'web' && !disabled && { cursor: 'pointer' },
         StyleSheet.flatten(style as object),
       ]}
       disabled={disabled}

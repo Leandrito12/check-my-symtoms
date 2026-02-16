@@ -12,6 +12,8 @@ import { CartesianChart, Line } from 'victory-native';
 import { useFont } from '@shopify/react-native-skia';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
+import { ResponsiveContainer } from '@/src/components/ResponsiveContainer';
 import { useHealthAnalytics, type HealthAnalyticsRange, type HealthAnalyticsRangeOrNone } from '@/src/hooks/useHealthAnalytics';
 import { fetchSymptoms } from '@/src/useCases/fetchSymptoms';
 import { devLog } from '@/src/utils/devLog';
@@ -35,11 +37,15 @@ const RANGE_OPTIONS: { key: HealthAnalyticsRange; label: string }[] = [
   { key: '90d', label: '90D' },
 ];
 
-const DESKTOP_BREAKPOINT = 600;
-
 export function HealthDashboardScreen() {
   const { user } = useAuth();
+  const { isDesktop } = useBreakpointContext();
+  const [mounted, setMounted] = useState(false);
   const [range, setRange] = useState<HealthAnalyticsRangeOrNone>('7d');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const rangeDays = useMemo(() => {
     const map: Record<HealthAnalyticsRange, number> = { '1d': 1, '7d': 7, '30d': 30, '90d': 90 };
@@ -54,9 +60,8 @@ export function HealthDashboardScreen() {
   });
 
   const { width } = useWindowDimensions();
-  const isDesktop = width >= DESKTOP_BREAKPOINT;
   const chartWidth = Math.min(width - 48, 400);
-  const chartHeight = 200;
+  const chartHeight = isDesktop ? 400 : 300;
 
   const points = useMemo(() => logsToChartPoints(logs), [logs]);
   const bloodPressurePoints = useMemo(() => logsToBloodPressurePoints(logs), [logs]);
@@ -294,14 +299,25 @@ export function HealthDashboardScreen() {
     );
   }
 
+  if (!mounted) {
+    return (
+      <ResponsiveContainer style={styles.container}>
+        <View style={styles.centered}>
+          <Text style={styles.message}>Cargando gráficos…</Text>
+        </View>
+      </ResponsiveContainer>
+    );
+  }
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Evolución de signos vitales</Text>
+    <ResponsiveContainer style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Evolución de signos vitales</Text>
         <View style={styles.rangeSelector}>
           {RANGE_OPTIONS.map(({ key, label }) => (
             <Pressable
@@ -361,6 +377,7 @@ export function HealthDashboardScreen() {
                   data={symptomChartDataByName.map((d) => ({ date: d.date, value: d.value }))}
                   emptyMessage="No hay registros en este período. Registra síntomas para ver la evolución."
                   showDateLabels
+                  height={chartHeight}
                 />
               ) : (
                 <View style={styles.symptomNoDataPlaceholder}>
@@ -383,6 +400,7 @@ export function HealthDashboardScreen() {
             <PressureMapChart
               data={bloodPressurePoints}
               emptyMessage="Sin datos de presión en este periodo."
+              height={chartHeight}
             />
           </View>
           <View style={styles.desktopCol40}>
@@ -398,6 +416,7 @@ export function HealthDashboardScreen() {
           <PressureMapChart
             data={bloodPressurePoints}
             emptyMessage="Sin datos de presión en este periodo."
+            height={chartHeight}
           />
           <SymptomFrequencyBarChart
             data={symptomFrequency}
@@ -450,12 +469,14 @@ export function HealthDashboardScreen() {
             Ningún registro tiene presión o FC. Añade esos datos al registrar síntomas.
           </Text>
         )}
-    </ScrollView>
+      </ScrollView>
+    </ResponsiveContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SafeHarbor.colors.background },
+  scrollView: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 48 },
   headerRow: {
     flexDirection: 'row',

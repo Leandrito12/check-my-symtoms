@@ -1,10 +1,13 @@
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Share } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
+import { ResponsiveContainer } from '@/src/components/ResponsiveContainer';
 import { getSharedViewUrl } from '@/src/utils/sharedViewUrl';
+import type { HealthLogForPatient } from '@/src/useCases';
 import { fetchHealthLogsForPatient, sharedLogGet } from '@/src/useCases';
 
 const MAX_LOGS_FOR_PRESCRIPTION_CHECK = 20;
@@ -37,9 +40,52 @@ function formatDisplayName(name: string): string {
   return s.trim();
 }
 
+function LogCard({
+  log,
+  hasPrescription,
+  onPress,
+  onShare,
+}: {
+  log: HealthLogForPatient;
+  hasPrescription: boolean;
+  onPress: () => void;
+  onShare: () => void;
+}) {
+  return (
+    <View style={styles.gridCard}>
+      <Pressable
+        style={({ pressed }) => [styles.gridCardMain, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
+        onPress={onPress}
+      >
+        <View style={styles.gridCardHeader}>
+          <Text style={styles.gridCardName} numberOfLines={2}>{log.symptom_name}</Text>
+          {hasPrescription && (
+            <View style={styles.recetaBadge}>
+              <Text style={styles.recetaBadgeText}>Receta</Text>
+            </View>
+          )}
+        </View>
+        <View style={[styles.painBadge, { backgroundColor: log.pain_level != null && log.pain_level >= 6 ? SafeHarbor.painLevelColors.alert : SafeHarbor.colors.border }]}>
+          <Text style={styles.painText}>{log.pain_level ?? '–'}</Text>
+        </View>
+        <Text style={styles.logDate}>
+          {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+        </Text>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.gridShareBtn, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
+        onPress={onShare}
+      >
+        <Text style={styles.shareBtnText}>Compartir</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isDesktop } = useBreakpointContext();
   const rawName = user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'Paciente';
   const displayName = formatDisplayName(rawName);
   const userId = user?.id ?? '';
@@ -86,19 +132,33 @@ export default function HomeTab() {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <ResponsiveContainer style={styles.container}>
       <Text style={styles.greeting}>Hola, {displayName}</Text>
       <Text style={styles.subtitle}>Tu historial de síntomas</Text>
       {isLoading ? (
         <ActivityIndicator size="small" color={SafeHarbor.colors.primary} style={styles.loader} />
       ) : logs.length === 0 ? (
         <Text style={styles.empty}>Aún no tienes registros. Añade uno con el botón +.</Text>
+      ) : isDesktop ? (
+        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+          <View style={styles.grid}>
+            {logs.map((log) => (
+              <LogCard
+                key={log.id}
+                log={log}
+                hasPrescription={logIdsWithPrescription.has(log.id)}
+                onPress={() => router.push(`/log/${log.id}`)}
+                onShare={() => shareLog(log.id)}
+              />
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
           {logs.map((log) => (
             <View key={log.id} style={styles.logRow}>
               <Pressable
-                style={({ pressed }) => [styles.logRowMain, { opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.logRowMain, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
                 onPress={() => router.push(`/log/${log.id}`)}
               >
                 <View style={styles.logNameBlock}>
@@ -117,7 +177,7 @@ export default function HomeTab() {
                 </Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.shareBtn, { opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.shareBtn, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
                 onPress={() => shareLog(log.id)}
               >
                 <Text style={styles.shareBtnText}>Compartir</Text>
@@ -127,12 +187,12 @@ export default function HomeTab() {
         </ScrollView>
       )}
       <Pressable
-        style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.9 : 1 }]}
+        style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.9 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
         onPress={() => router.push('/(tabs)/symptom-entry')}
       >
         <Text style={styles.fabText}>+</Text>
       </Pressable>
-    </View>
+    </ResponsiveContainer>
   );
 }
 
@@ -140,8 +200,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SafeHarbor.colors.background,
-    padding: 24,
     paddingTop: 16,
+    paddingBottom: 24,
   },
   greeting: {
     fontSize: 22,
@@ -158,6 +218,44 @@ const styles = StyleSheet.create({
   loader: { marginTop: 16 },
   empty: { fontSize: 14, color: SafeHarbor.colors.text, opacity: 0.7, marginTop: 8 },
   list: { flex: 1 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  gridCard: {
+    width: '31%',
+    minWidth: 140,
+    backgroundColor: SafeHarbor.colors.white,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    borderWidth: 1,
+    borderColor: SafeHarbor.colors.border,
+    overflow: 'hidden',
+  },
+  gridCardMain: {
+    padding: 14,
+  },
+  gridCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  gridCardName: {
+    flex: 1,
+    fontSize: 15,
+    color: SafeHarbor.colors.text,
+    fontWeight: '500',
+    minWidth: 0,
+  },
+  gridShareBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: SafeHarbor.colors.border,
+    alignItems: 'center',
+  },
   logRow: {
     flexDirection: 'row',
     alignItems: 'center',

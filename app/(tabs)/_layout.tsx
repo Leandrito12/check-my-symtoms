@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router';
 
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -13,6 +14,8 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const { isDesktop } = useBreakpointContext();
+
   return (
     <Tabs
       screenOptions={{
@@ -21,6 +24,7 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
         headerStyle: { backgroundColor: SafeHarbor.colors.primary },
         headerTintColor: SafeHarbor.colors.white,
+        tabBarStyle: isDesktop ? { display: 'none' } : undefined,
       }}
     >
       <Tabs.Screen

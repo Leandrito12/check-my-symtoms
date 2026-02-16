@@ -174,9 +174,10 @@ export default function SharedHistoryScreen() {
 
   if (!token) return null;
 
+  // Estado de carga a pantalla completa para no mostrar flash de (tabs) ni contenido del paciente.
   if (isLoading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, styles.loadingFullScreen]}>
         <ActivityIndicator size="large" color={SafeHarbor.colors.primary} />
         <Text style={styles.hint}>Cargando historial…</Text>
       </View>
@@ -398,6 +399,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  loadingFullScreen: { minHeight: '100%' },
   hint: {
     fontSize: 14,
     color: SafeHarbor.colors.textSecondary,

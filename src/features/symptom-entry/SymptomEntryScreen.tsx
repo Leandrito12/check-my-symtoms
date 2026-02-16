@@ -28,12 +28,15 @@ import {
   updateHealthLogImagePath,
 } from '@/src/useCases';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
 import { parsePressureInput } from '@/src/utils/parsePressure';
+import { ResponsiveContainer } from '@/src/components/ResponsiveContainer';
 import { Button, Input, Card, SymptomDropdown, PainSlider, EmergencyAlert } from '@/src/components/ui';
 
 export default function SymptomEntryScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isDesktop } = useBreakpointContext();
   const queryClient = useQueryClient();
   const [symptom, setSymptom] = useState<SymptomMaster | null>(null);
   const [subSymptoms, setSubSymptoms] = useState<SymptomMaster[]>([]);
@@ -225,14 +228,176 @@ export default function SymptomEntryScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.title}>Registra tu Síntoma</Text>
+      <ResponsiveContainer forForm style={styles.responsiveWrap}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.title}>Registra tu Síntoma</Text>
 
         <Card style={styles.card}>
+          {isDesktop ? (
+            <View style={styles.twoColRow}>
+              <View style={styles.twoColCol}>
+                <View style={styles.requiredFieldWrapper}>
+                  <Text style={styles.fieldLabel}>Síntoma Principal</Text>
+                  <SymptomDropdown
+                    options={symptoms}
+                    value={symptom}
+                    onChange={setSymptom}
+                    onCreateOption={handleCreateSymptom}
+                    placeholder="Escribe o selecciona..."
+                    invalid={!symptom}
+                  />
+                  {!symptom && (
+                    <Text style={styles.requiredLegend}>Campo obligatorio</Text>
+                  )}
+                </View>
+                <Text style={styles.fieldLabel}>Otro síntoma</Text>
+                <SymptomDropdown
+                  options={symptoms}
+                  value={null}
+                  onChange={() => {}}
+                  onCreateOption={handleCreateSymptom}
+                  placeholder="Escribe o agrega otro síntoma..."
+                  addOnly
+                  onAdd={(item) => {
+                    if (!subSymptoms.some((s) => s.id === item.id)) {
+                      setSubSymptoms((prev) => [...prev, item]);
+                    }
+                  }}
+                />
+                {subSymptoms.length > 0 ? (
+                  <View style={styles.badgesRow}>
+                    {subSymptoms.map((s) => (
+                      <View key={s.id} style={styles.badge}>
+                        <Text style={styles.badgeText} numberOfLines={1}>{s.name}</Text>
+                        <Pressable
+                          hitSlop={8}
+                          onPress={() => setSubSymptoms((prev) => prev.filter((x) => x.id !== s.id))}
+                          style={({ pressed }) => [styles.badgeRemove, pressed && styles.badgeRemovePressed]}
+                        >
+                          <Text style={styles.badgeRemoveText}>✕</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={styles.inputWrapDesktop}>
+                  <Input
+                    label="Contexto (opcional)"
+                    placeholder="¿Desde cuándo? ¿Qué empeora o mejora?"
+                    value={context}
+                    onChangeText={setContext}
+                    multiline
+                  />
+                </View>
+              </View>
+              <View style={styles.twoColCol}>
+                <PainSlider value={painLevel} onChange={setPainLevel} />
+                {showEmergency && <EmergencyAlert />}
+                <Text style={styles.fieldLabel}>Datos fisiológicos (opcionales)</Text>
+                {showPressureInputs ? (
+                  <View style={styles.row}>
+                    <Input
+                      placeholder="Sistólica o 120/80"
+                      value={systolic}
+                      onChangeText={setSystolic}
+                      onBlur={() => {
+                        const parsed = parsePressureInput(systolic);
+                        if (parsed) {
+                          setSystolic(String(parsed.systolic));
+                          setDiastolic(String(parsed.diastolic));
+                        }
+                      }}
+                      keyboardType="numbers-and-punctuation"
+                      style={[styles.halfInput, pressureAlertBorder && styles.inputAlertBorder]}
+                    />
+                    <Input
+                      placeholder="Diastólica"
+                      value={diastolic}
+                      onChangeText={setDiastolic}
+                      keyboardType="number-pad"
+                      style={styles.halfInput}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.row}>
+                    <Input
+                      placeholder="Presión (ej. 120/80 o 120-80)"
+                      value={bloodPressure}
+                      onChangeText={setBloodPressure}
+                      keyboardType="numbers-and-punctuation"
+                      style={styles.halfInput}
+                    />
+                    <Input
+                      placeholder="FC"
+                      value={heartRate}
+                      onChangeText={setHeartRate}
+                      keyboardType="number-pad"
+                      style={styles.halfInput}
+                    />
+                  </View>
+                )}
+                {showPressureInputs && (
+                  <View style={styles.row}>
+                    <Input
+                      placeholder="FC"
+                      value={heartRate}
+                      onChangeText={setHeartRate}
+                      keyboardType="number-pad"
+                      style={styles.halfInput}
+                    />
+                    <Input
+                      placeholder="Saturación O2 %"
+                      value={oxygenSat}
+                      onChangeText={setOxygenSat}
+                      keyboardType="number-pad"
+                      style={styles.halfInput}
+                    />
+                  </View>
+                )}
+                {!showPressureInputs && (
+                  <Input
+                    placeholder="Saturación O2 %"
+                    value={oxygenSat}
+                    onChangeText={setOxygenSat}
+                    keyboardType="number-pad"
+                  />
+                )}
+                <View style={styles.photoSection}>
+                  {photoUri ? (
+                    <View style={styles.photoPreview}>
+                      <Image source={{ uri: photoUri }} style={styles.photoThumb} resizeMode="cover" />
+                      <Pressable
+                        style={({ pressed }) => [styles.removePhoto, pressed && styles.removePhotoPressed]}
+                        onPress={() => setPhotoUri(null)}
+                      >
+                        <Text style={styles.removePhotoText}>Quitar foto</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Button
+                      title="Adjuntar Foto (Opcional)"
+                      variant="outline"
+                      fullWidth
+                      onPress={handlePickPhoto}
+                      style={styles.attachButton}
+                    />
+                  )}
+                </View>
+                <Button
+                  title="Guardar Síntoma"
+                  onPress={handleSave}
+                  fullWidth
+                  disabled={!symptom || validateMutation.isPending || isSaving}
+                  style={styles.saveButton}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
           <View style={styles.requiredFieldWrapper}>
             <Text style={styles.fieldLabel}>Síntoma Principal</Text>
             <SymptomDropdown
@@ -389,8 +554,11 @@ export default function SymptomEntryScreen() {
             disabled={!symptom || validateMutation.isPending || isSaving}
             style={styles.saveButton}
           />
+            </>
+          )}
         </Card>
       </ScrollView>
+      </ResponsiveContainer>
     </KeyboardAvoidingView>
     </>
   );
@@ -398,6 +566,7 @@ export default function SymptomEntryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SafeHarbor.colors.background },
+  responsiveWrap: { flex: 1 },
   scroll: { padding: 24, paddingBottom: 48 },
   title: {
     fontSize: 22,
@@ -406,6 +575,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: { marginBottom: 16 },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  twoColCol: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: 520,
+  },
+  inputWrapDesktop: {
+    maxWidth: 520,
+  },
   requiredFieldWrapper: {
     marginBottom: 4,
   },
