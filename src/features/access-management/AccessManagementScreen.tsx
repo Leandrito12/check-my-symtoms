@@ -14,6 +14,7 @@ import {
   Share,
   ActivityIndicator,
   Modal,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -27,7 +28,11 @@ import {
   type PendingRequest,
   type AuthorizedDoctor,
 } from '@/src/useCases';
-import { buildSharedHistoryUrl, buildDoctorRequestUrl } from '@/src/utils/sharedHistoryUrl';
+import {
+  buildSharedHistoryUrl,
+  buildDoctorRequestUrl,
+  getDoctorRequestShareMessage,
+} from '@/src/utils/sharedHistoryUrl';
 import { generateShareCode } from '@/src/utils/generateShareCode';
 import { supabase } from '@/src/infrastructure/supabase';
 import { Button } from '@/src/components/ui';
@@ -46,6 +51,8 @@ export function AccessManagementScreen() {
   const [shareCodeLoading, setShareCodeLoading] = useState(true);
   const [shareCodeError, setShareCodeError] = useState(false);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
+  const [linkCopiedFeedback, setLinkCopiedFeedback] = useState(false);
+  const [grantedLinkCopiedFeedback, setGrantedLinkCopiedFeedback] = useState(false);
   const [showGrantSuccessModal, setShowGrantSuccessModal] = useState(false);
   const [lastGrantedToken, setLastGrantedToken] = useState<string | null>(null);
 
@@ -143,12 +150,16 @@ export function AccessManagementScreen() {
 
   const handleShareAccess = useCallback(async () => {
     if (!shareCode) return;
-    const url = buildDoctorRequestUrl(shareCode);
-    const message =
-      '🩺 *Historial Clínico Compartido*\n\n' +
-      `Hola, Dr. Le comparto mi historial de salud para su revisión. ` +
-      `Puede acceder directamente haciendo clic aquí:\n\n` +
-      url;
+    const message = getDoctorRequestShareMessage(shareCode);
+    if (Platform.OS === 'web') {
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      try {
+        await Share.share({ message, title: 'Acceso a Historial Clínico' });
+      } catch {
+        if (typeof window !== 'undefined') window.open(whatsappUrl, '_blank');
+      }
+      return;
+    }
     try {
       await Share.share({
         message,
@@ -160,11 +171,35 @@ export function AccessManagementScreen() {
     }
   }, [shareCode]);
 
+  const handleCopyLink = useCallback(async () => {
+    if (!shareCode) return;
+    const url = buildDoctorRequestUrl(shareCode);
+    await Clipboard.setStringAsync(url);
+    setLinkCopiedFeedback(true);
+    setTimeout(() => setLinkCopiedFeedback(false), 2000);
+    if (Platform.OS !== 'web') Alert.alert('Listo', 'Link copiado.');
+  }, [shareCode]);
+
+  const handleOpenWhatsAppShare = useCallback(() => {
+    if (!shareCode) return;
+    const message = getDoctorRequestShareMessage(shareCode);
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    if (typeof window !== 'undefined') window.open(whatsappUrl, '_blank');
+  }, [shareCode]);
+
   const handleShareGrantedLink = useCallback(() => {
     if (!lastGrantedToken) return;
     const url = buildSharedHistoryUrl(lastGrantedToken);
+    const message = `Enlace para ver mi historial de salud: ${url}`;
+    if (Platform.OS === 'web') {
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      Share.share({ message, title: 'Acceso al historial' }).catch(() => {
+        if (typeof window !== 'undefined') window.open(whatsappUrl, '_blank');
+      });
+      return;
+    }
     Share.share({
-      message: `Enlace para ver mi historial de salud: ${url}`,
+      message,
       url,
       title: 'Acceso al historial',
     }).catch(() => {
@@ -174,9 +209,19 @@ export function AccessManagementScreen() {
     });
   }, [lastGrantedToken]);
 
+  const handleCopyGrantedLink = useCallback(async () => {
+    if (!lastGrantedToken) return;
+    const url = buildSharedHistoryUrl(lastGrantedToken);
+    await Clipboard.setStringAsync(url);
+    setGrantedLinkCopiedFeedback(true);
+    setTimeout(() => setGrantedLinkCopiedFeedback(false), 2000);
+    if (Platform.OS !== 'web') Alert.alert('Listo', 'Link copiado.');
+  }, [lastGrantedToken]);
+
   const closeGrantSuccessModal = useCallback(() => {
     setShowGrantSuccessModal(false);
     setLastGrantedToken(null);
+    setGrantedLinkCopiedFeedback(false);
   }, []);
 
   if (!user) {
@@ -243,11 +288,32 @@ export function AccessManagementScreen() {
                     {copiedFeedback ? 'Copiado' : 'Copiar'}
                   </Text>
                 </Pressable>
-                <Button
-                  title="Copiar y compartir"
-                  onPress={handleShareAccess}
-                  style={styles.shareBtn}
-                />
+                {Platform.OS === 'web' ? (
+                  <>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.copyBtn,
+                        { opacity: pressed ? 0.9 : 1 },
+                      ]}
+                      onPress={handleCopyLink}
+                    >
+                      <Text style={styles.copyBtnText}>
+                        {linkCopiedFeedback ? 'Link copiado' : 'Copiar Link'}
+                      </Text>
+                    </Pressable>
+                    <Button
+                      title="Enviar por WhatsApp"
+                      onPress={handleOpenWhatsAppShare}
+                      style={styles.shareBtn}
+                    />
+                  </>
+                ) : (
+                  <Button
+                    title="Copiar y compartir"
+                    onPress={handleShareAccess}
+                    style={styles.shareBtn}
+                  />
+                )}
               </View>
             </>
           ) : null}
@@ -341,6 +407,14 @@ export function AccessManagementScreen() {
               onPress={handleShareGrantedLink}
               style={styles.modalShareBtn}
             />
+            {Platform.OS === 'web' && (
+              <Button
+                title={grantedLinkCopiedFeedback ? 'Link copiado' : 'Copiar link'}
+                variant="outline"
+                onPress={handleCopyGrantedLink}
+                style={styles.modalShareBtn}
+              />
+            )}
             <Button title="Cerrar" variant="ghost" onPress={closeGrantSuccessModal} />
           </Pressable>
         </Pressable>

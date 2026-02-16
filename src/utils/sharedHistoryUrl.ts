@@ -16,6 +16,20 @@ export function buildDoctorRequestUrl(shareCode: string, baseUrl?: string): stri
 }
 
 /**
+ * Mensaje estándar para compartir con el médico (solicitud de acceso con código).
+ * Uso: Share.share, wa.me/?text=..., etc. Un solo texto para native y web.
+ */
+export function getDoctorRequestShareMessage(shareCode: string, baseUrl?: string): string {
+  const url = buildDoctorRequestUrl(shareCode, baseUrl);
+  return (
+    '🩺 *Historial Clínico Compartido*\n\n' +
+    'Hola, Dr. Le comparto mi historial de salud para su revisión. ' +
+    'Puede acceder directamente haciendo clic aquí:\n\n' +
+    url
+  );
+}
+
+/**
  * Construye la URL del historial compartido con el token en query.
  * Uso: tras grant-access, el paciente copia/comparte esta URL con el médico.
  *
