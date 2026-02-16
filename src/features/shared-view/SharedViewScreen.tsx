@@ -1,10 +1,19 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  useWindowDimensions,
+  Pressable,
+} from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { sharedLogGet } from '@/src/useCases';
-import { Card } from '@/src/components/ui';
+import { Card, Button } from '@/src/components/ui';
 import { SkeletonLog } from '@/src/components/ui/SkeletonLog';
+import { useClinicalHistory } from '@/src/hooks/useClinicalHistory';
+import { ClinicalRecordItem, AddClinicalRecordModal } from '@/src/features/clinical-history';
 import { CommentForm } from './CommentForm';
 
 function getPainColor(level: number): string {
@@ -15,9 +24,11 @@ function getPainColor(level: number): string {
 
 interface SharedViewScreenProps {
   logId: string;
+  /** C02: Token de médico (sin sesión). Muestra feed de historia clínica y FAB. */
+  accessToken?: string;
 }
 
-export function SharedViewScreen({ logId }: SharedViewScreenProps) {
+export function SharedViewScreen({ logId, accessToken }: SharedViewScreenProps) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -55,11 +66,17 @@ export function SharedViewScreen({ logId }: SharedViewScreenProps) {
   }
 
   const { log, comments } = data;
+  const patientId = log.patient_id;
+  const { data: clinicalRecords = [] } = useClinicalHistory(patientId, accessToken);
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const isDoctorView = !!accessToken;
 
   return (
     <View style={styles.container}>
       <View style={[styles.header, isDesktop && styles.headerDesktop]}>
-        <Text style={styles.headerTitle}>Vista compartida – Síntoma</Text>
+        <Text style={styles.headerTitle}>
+          {isDoctorView ? 'Detalle paciente – Síntoma' : 'Vista compartida – Síntoma'}
+        </Text>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -98,6 +115,19 @@ export function SharedViewScreen({ logId }: SharedViewScreenProps) {
           </Text>
         </Card>
 
+        {isDoctorView && (
+          <>
+            <Text style={styles.commentsTitle}>Historia clínica</Text>
+            {clinicalRecords.length === 0 ? (
+              <Text style={styles.emptyComments}>Aún no hay notas clínicas.</Text>
+            ) : (
+              clinicalRecords.map((record) => (
+                <ClinicalRecordItem key={record.id} record={record} />
+              ))
+            )}
+          </>
+        )}
+
         <Text style={styles.commentsTitle}>Comentarios y prescripciones</Text>
         <CommentForm logId={logId} />
         {comments.length === 0 ? (
@@ -125,6 +155,25 @@ export function SharedViewScreen({ logId }: SharedViewScreenProps) {
           ))
         )}
       </ScrollView>
+
+      {isDoctorView && (
+        <>
+          <Pressable
+            style={styles.fab}
+            onPress={() => setShowAddNoteModal(true)}
+          >
+            <Text style={styles.fabText}>+ Nota clínica</Text>
+          </Pressable>
+          <AddClinicalRecordModal
+            visible={showAddNoteModal}
+            onClose={() => setShowAddNoteModal(false)}
+            patientId={patientId}
+            patientName={`Paciente ${patientId.slice(0, 8)}`}
+            accessToken={accessToken!}
+            doctorName="Dr. Médico"
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -177,6 +226,22 @@ const styles = StyleSheet.create({
   commentContent: { fontSize: 14, color: SafeHarbor.colors.text },
   commentAttachment: { fontSize: 12, color: SafeHarbor.colors.primary, marginTop: 4 },
   commentDate: { fontSize: 11, color: SafeHarbor.colors.text, opacity: 0.6, marginTop: 4 },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    backgroundColor: SafeHarbor.colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    minHeight: SafeHarbor.spacing.minTapTarget,
+    justifyContent: 'center',
+  },
+  fabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: SafeHarbor.colors.white,
+  },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   errorText: { fontSize: 16, color: SafeHarbor.colors.alert, textAlign: 'center' },
 });

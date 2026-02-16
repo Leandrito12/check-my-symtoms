@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { SafeHarbor } from '@/constants/SafeHarbor';
-import { supabase } from '@/src/infrastructure/supabase';
+import { setSessionWithTimeout, supabase } from '@/src/infrastructure/supabase';
 
 function parseSessionFromUrl(url: string): { access_token: string; refresh_token: string } | null {
   const hash = url.includes('#') ? url.split('#')[1] : '';
@@ -65,10 +65,7 @@ export default function AuthCallbackScreen() {
         }
         return;
       }
-      const { error } = await supabase.auth.setSession({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-      });
+      const { error } = await setSessionWithTimeout(tokens);
       if (cancelled) return;
       if (error) {
         setStatus('error');

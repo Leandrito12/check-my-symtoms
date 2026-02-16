@@ -25,6 +25,8 @@ interface SymptomDropdownProps {
   onAdd?: (item: SymptomMaster) => void;
   /** Estado de error/obligatorio no cumplido: borde y aura en color alert. */
   invalid?: boolean;
+  /** Si false, no se muestra el botón de agregar (útil cuando solo se filtra, ej. dashboard). */
+  showCreateButton?: boolean;
 }
 
 export function SymptomDropdown({
@@ -36,6 +38,7 @@ export function SymptomDropdown({
   addOnly = false,
   onAdd,
   invalid = false,
+  showCreateButton = true,
 }: SymptomDropdownProps) {
   const [search, setSearch] = useState(value?.name ?? '');
   const [focused, setFocused] = useState(false);
@@ -57,7 +60,7 @@ export function SymptomDropdown({
     return !options.some((o) => o.name.toLowerCase() === q.toLowerCase());
   }, [search, options, onCreateOption]);
 
-  const showDropdown = focused && (search.length > 0 || filtered.length > 0);
+  const showDropdown = focused && (filtered.length > 0 || search.length > 0);
 
   const handleSelect = (item: SymptomMaster) => {
     if (addOnly && onAdd) {
@@ -116,13 +119,15 @@ export function SymptomDropdown({
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           editable
         />
-        <Pressable
-          style={[styles.addIcon, showCreate && styles.addIconActive]}
-          onPress={handleCreate}
-          disabled={!showCreate || creating}
-        >
-          <Text style={styles.addIconText}>{creating ? '…' : '+'}</Text>
-        </Pressable>
+        {showCreateButton ? (
+          <Pressable
+            style={[styles.addIcon, showCreate && styles.addIconActive]}
+            onPress={handleCreate}
+            disabled={!showCreate || creating}
+          >
+            <Text style={styles.addIconText}>{creating ? '…' : '+'}</Text>
+          </Pressable>
+        ) : null}
       </View>
       {showDropdown ? (
         <View style={styles.dropdown}>

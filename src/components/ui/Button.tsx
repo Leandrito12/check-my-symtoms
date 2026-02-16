@@ -4,7 +4,7 @@ import { SafeHarbor } from '@/constants/SafeHarbor';
 
 const MIN_TAP = SafeHarbor.spacing.minTapTarget;
 
-type Variant = 'primary' | 'secondary' | 'alert' | 'outline';
+type Variant = 'primary' | 'secondary' | 'alert' | 'outline' | 'ghost';
 
 interface ButtonProps extends PressableProps {
   title: string;
@@ -12,11 +12,12 @@ interface ButtonProps extends PressableProps {
   fullWidth?: boolean;
 }
 
-const variantStyles: Record<Variant, { bg: string; text: string }> = {
+const variantStyles: Record<Variant, { bg: string; text: string; border?: boolean }> = {
   primary: { bg: SafeHarbor.colors.primary, text: SafeHarbor.colors.white },
   secondary: { bg: SafeHarbor.colors.secondary, text: SafeHarbor.colors.white },
   alert: { bg: SafeHarbor.colors.alert, text: SafeHarbor.colors.white },
-  outline: { bg: 'transparent', text: SafeHarbor.colors.primary },
+  outline: { bg: 'transparent', text: SafeHarbor.colors.primary, border: true },
+  ghost: { bg: 'transparent', text: SafeHarbor.colors.primary },
 };
 
 export function Button({
@@ -27,14 +28,14 @@ export function Button({
   style,
   ...props
 }: ButtonProps) {
-  const { bg, text } = variantStyles[variant];
+  const { bg, text, border } = variantStyles[variant];
   return (
     <Pressable
       style={({ pressed }) => [
         styles.base,
         { backgroundColor: bg, minHeight: MIN_TAP, minWidth: MIN_TAP, opacity: disabled ? 0.6 : pressed ? 0.9 : 1 },
         fullWidth && styles.fullWidth,
-        variant === 'outline' && { borderWidth: 2, borderColor: SafeHarbor.colors.primary },
+        border && { borderWidth: 2, borderColor: SafeHarbor.colors.primary },
         StyleSheet.flatten(style as object),
       ]}
       disabled={disabled}

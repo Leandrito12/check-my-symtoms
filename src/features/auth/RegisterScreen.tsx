@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } fr
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { Button, Input } from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
+import { getAuthErrorMessage } from '@/src/utils/authErrors';
 
 interface RegisterScreenProps {
   onGoLogin: () => void;
@@ -31,8 +32,7 @@ export default function RegisterScreen({ onGoLogin }: RegisterScreenProps) {
       await signUp(email.trim(), password, { displayName: displayName.trim() || undefined });
       onGoLogin();
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Error al crear la cuenta.';
-      setError(message);
+      setError(getAuthErrorMessage(e, 'signUp') || 'Error al crear la cuenta.');
     } finally {
       setLoading(false);
     }

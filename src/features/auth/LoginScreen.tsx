@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { Button, Input } from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
+import { getAuthErrorMessage } from '@/src/utils/authErrors';
 
 interface LoginScreenProps {
   onGoRegister: () => void;
@@ -28,8 +29,7 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
       await signIn(email.trim(), password);
       onSuccess?.();
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Error al iniciar sesión.';
-      setError(message);
+      setError(getAuthErrorMessage(e, 'signIn') || 'Error al iniciar sesión.');
     } finally {
       setLoading(false);
     }
@@ -42,8 +42,7 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
       await signInWithGoogle();
       onSuccess?.();
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'No se pudo iniciar sesión con Google.';
-      setError(message);
+      setError(getAuthErrorMessage(e, 'google') || 'No se pudo iniciar sesión con Google.');
     } finally {
       setGoogleLoading(false);
     }

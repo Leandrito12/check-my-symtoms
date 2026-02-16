@@ -34,14 +34,24 @@ En la app con `@supabase/supabase-js` se puede usar:
 
 ### Respuesta esperada
 
-**200 OK** – Siempre devuelve JSON con al menos `emergency`.
+**200 OK** – Siempre devuelve JSON con al menos `emergency`. Opcionalmente el backend puede incluir `map` (presión arterial media en mmHg) cuando se envía `blood_pressure`, para mostrarlo en el frontend tras guardar.
 
-**Ejemplo 1 – Sin urgencia**
+**Ejemplo 1 – Sin urgencia (sin map)**
 ```json
 {
   "emergency": false,
   "reason": null,
   "message": null
+}
+```
+
+**Ejemplo 1b – Sin urgencia (con map cuando hay presión)**
+```json
+{
+  "emergency": false,
+  "reason": null,
+  "message": null,
+  "map": 93
 }
 ```
 
@@ -108,7 +118,7 @@ El frontend usa `supabase.functions.invoke('process-health-log', { body })`. El 
 }
 ```
 
-En código: `context: context?.trim() ?? ""`, `blood_pressure: bloodPressure?.trim() ?? ""`, `heart_rate: heartRate ? parseInt(heartRate, 10) : null`, `oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null`. El backend exige `symptom_id` y responde **200** con `{ "emergency": boolean, "reason": string | null, "message": string | null }`. Síntoma secundario, presión, FC, saturación y foto no se envían a esta función (solo validación de urgencia); son opcionales en el **insert** a `health_logs` (sección 6).
+En código: `context: context?.trim() ?? ""`, `blood_pressure: bloodPressure?.trim() ?? ""`, `heart_rate: heartRate ? parseInt(heartRate, 10) : null`, `oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null`. El backend exige `symptom_id` y responde **200** con `{ "emergency": boolean, "reason": string | null, "message": string | null, "map"?: number | null }`. Si envía presión (`blood_pressure`), el backend puede devolver `map` (MAP en mmHg) para mostrarlo en el modal de éxito. Síntoma secundario, presión, FC, saturación y foto no se envían a esta función (solo validación de urgencia); son opcionales en el **insert** a `health_logs` (sección 6).
 
 ---
 
@@ -379,11 +389,127 @@ Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/crea
 
 ---
 
+## get-patient-analytics
+
+**Obtener datos de evolución por síntoma para gráficos.** Usado en Dashboard (por síntoma) y en vista médico. Puede aceptar **Bearer JWT** (paciente logueado) o **access_token** en body (médico sin sesión, C02).
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` (o GET con query params según implementación backend) |
+| **URL** | `/functions/v1/get-patient-analytics` |
+| **Body** | `{ "symptomId": string (UUID), "range": "week" \| "month" }` (opcionalmente `range` también `"7d"` \| `"30d"` \| `"90d"` si el backend lo soporta) |
+| **Authorization** | Opcional: Bearer JWT (paciente) o el backend puede aceptar `access_token` en body/headers para médico. |
+
+### Respuesta esperada
+
+**200 OK** – Array de puntos para gráfico:
+
+```json
+[
+  { "date": "2025-02-01", "value": 120, "secondary": 80 },
+  { "date": "2025-02-08", "value": 118, "secondary": 78 }
+]
+```
+
+**Nota dashboard de salud:** El dashboard de signos vitales (presión, MAP, frecuencia de síntomas, FC) obtiene los datos mediante **health_logs** (select por `patient_id`) y aplica el **range** (7D / 30D / 90D) en el cliente. La query key incluye el range para invalidar caché al cambiar de periodo.
+
+---
+
+## manage-clinical-record
+
+**Crear nota en historia clínica.** Solo para contexto médico; el médico no tiene sesión en la app del paciente, por lo que se envía **access_token** en el body (C02).
+
+**Contrato backend (FRONTEND_HANDS_ON_ENDPOINTS.md):** Body con `note_content`, `record_type` (`nota` \| `estudio` \| `diagnóstico` \| `medicamento`). El frontend mapea internamente: `content` → `note_content`, `evolucion` → `nota`, `diagnostico` → `diagnóstico`, `medicacion` → `medicamento`.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` |
+| **URL** | `/functions/v1/manage-clinical-record` |
+| **Body** | JSON con `access_token`, `patient_id`, `note_content`, `record_type` (`nota` \| `estudio` \| `diagnóstico` \| `medicamento`), `tags` (array), `metadata` (object). Opcional: **`log_id`** (UUID del log al que se asocia la nota; el backend marca ese log como `is_reviewed: true`). |
+
+### Respuesta esperada
+
+**201 Created** – `{ "record": { "id": string (UUID), "created_at": string (ISO), ... } }`.
+
+---
+
+## Historial compartido con el médico
+
+Flujo de autorización en 3 pasos: código → solicitud → concesión. Ver plan Historial Compartido.
+
+### request-access
+
+**Solicitar acceso al historial (médico).** El médico envía el share_code y su nombre. El paciente verá la solicitud en la app y podrá conceder o no.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` |
+| **URL** | `/functions/v1/request-access` |
+| **Body** | `{ "share_code": string, "doctor_name": string }` |
+| **Authorization** | No (médico sin sesión). |
+
+**200 OK** – `{ "status": "pending", "request_id": string (UUID) }`.
+
+### grant-access
+
+**Conceder acceso (paciente).** El paciente autoriza una solicitud pendiente. Requiere JWT del paciente.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` |
+| **URL** | `/functions/v1/grant-access` |
+| **Body** | `{ "request_id": string (UUID) }` |
+| **Authorization** | **Bearer JWT** (paciente). |
+
+**200 OK** – `{ "success": true, "access_token": string }`. El token tiene expiración (ej. 24 h o 7 días). El frontend construye la URL compartible con `buildSharedHistoryUrl(access_token)`.
+
+### revoke-access
+
+**Revocar acceso (paciente).** El paciente quita el acceso a un médico.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` |
+| **URL** | `/functions/v1/revoke-access` |
+| **Body** | `{ "doctor_id": string (UUID) }` |
+| **Authorization** | **Bearer JWT** (paciente). |
+
+### shared-history
+
+**Obtener historial compartido (médico).** Vista read-only del historial del paciente. El token va en query.
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `GET` |
+| **URL** | `/functions/v1/shared-history?access_token=...&range=7d|30d|90d` |
+| **Authorization** | No; el access_token en query identifica la sesión. |
+
+**200 OK** – JSON con `patient_info` (name, age), `analytics` (history, symptom_frequency, anomaly), `logs` (array de registros). Recomendado: `expires_at` (ISO) y `expires_in_seconds` para banner preventivo y redirección al expirar.
+
+**401/403** – Token inválido o expirado; el frontend redirige a `/shared/expired`.
+
+### access-requests (opcional)
+
+**Listar share_code, solicitudes pendientes y médicos autorizados (paciente).**
+
+| Dato | Valor |
+|------|--------|
+| **Método** | `POST` (o GET según backend) |
+| **URL** | `/functions/v1/access-requests` |
+| **Body** | `{}` |
+| **Authorization** | **Bearer JWT** (paciente). |
+
+**200 OK** – `{ "share_code": string | null, "pending_requests": [...], "authorized_doctors": [...] }`.
+
+---
+
 ## Resumen rápido
 
 | Recurso | Tipo | Auth | Uso |
 |---------|------|------|-----|
 | process-health-log | Edge Function POST | **Bearer JWT obligatorio** | Validar urgencia antes de guardar; la función valida el JWT manualmente |
+| get-patient-analytics | Edge Function POST | JWT o access_token | Datos para gráficos de evolución por síntoma |
+| manage-clinical-record | Edge Function POST | access_token en body | Crear nota clínica (vista médico) |
 | **health_logs** (insert) | Tabla Supabase | **Bearer obligatorio** | Crear registro de síntoma tras validar |
 | **health_logs** (update) | Tabla Supabase | **Bearer obligatorio** | Actualizar image_path tras subir foto |
 | **symptoms-photos** (upload) | Storage Supabase | **Bearer obligatorio** | Subir foto del síntoma (comprimida en cliente) |
@@ -393,5 +519,10 @@ Implementación en frontend: `src/useCases/fetchSymptoms.ts`, `src/useCases/crea
 | shared-log | Edge Function POST | No | Crear comentario (vista compartida) |
 | prescription-signed-url | Edge Function GET / POST | **Bearer obligatorio** | Obtener URL para ver prescripción (app paciente) |
 | upload-prescription | Edge Function POST | No | Crear comentario + adjuntar PDF/imagen (vista compartida) |
+| request-access | Edge Function POST | No | Médico solicita acceso con share_code |
+| grant-access | Edge Function POST | **Bearer JWT (paciente)** | Paciente concede acceso; devuelve access_token |
+| revoke-access | Edge Function POST | **Bearer JWT (paciente)** | Paciente revoca acceso de un médico |
+| shared-history | Edge Function GET | access_token en query | Médico obtiene historial read-only |
+| access-requests | Edge Function POST | **Bearer JWT (paciente)** | Listar share_code, pendientes y autorizados |
 
 Spec completo en OpenAPI 3.0 (solo Edge Functions): [docs/openapi.yaml](openapi.yaml).

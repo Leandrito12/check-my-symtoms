@@ -4,9 +4,10 @@ import Slider from '@react-native-community/slider';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import type { PainLevel } from '@/src/domain/types';
 
+/** C03: 0-3 calm, 4-7 attention, 8-10 alert (umbral urgencia ≥8). */
 function getColor(level: number): string {
   if (level <= 3) return SafeHarbor.painLevelColors.calm;
-  if (level <= 5) return SafeHarbor.painLevelColors.attention;
+  if (level <= 7) return SafeHarbor.painLevelColors.attention;
   return SafeHarbor.painLevelColors.alert;
 }
 
@@ -16,12 +17,12 @@ interface PainSliderProps {
   label?: string;
 }
 
-const LEVELS: PainLevel[] = [0, 1, 2, 3, 4, 5, 6, 7];
+const LEVELS: PainLevel[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-export function PainSlider({ value, onChange, label = 'Nivel de Dolor (0-7)' }: PainSliderProps) {
+export function PainSlider({ value, onChange, label = 'Nivel de Dolor (0-10)' }: PainSliderProps) {
   const handleValueChange = (v: number) => {
     const rounded = Math.round(v) as PainLevel;
-    const clamped = LEVELS.includes(rounded) ? rounded : (Math.min(7, Math.max(0, rounded)) as PainLevel);
+    const clamped = LEVELS.includes(rounded) ? rounded : (Math.min(10, Math.max(0, rounded)) as PainLevel);
     onChange(clamped);
   };
 
@@ -31,7 +32,7 @@ export function PainSlider({ value, onChange, label = 'Nivel de Dolor (0-7)' }: 
       <Slider
         style={styles.slider}
         minimumValue={0}
-        maximumValue={7}
+        maximumValue={10}
         step={1}
         value={value}
         onValueChange={handleValueChange}

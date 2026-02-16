@@ -17,7 +17,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { PrescriptionViewerProvider } from '@/src/contexts/PrescriptionViewerContext';
-import { supabase } from '@/src/infrastructure/supabase';
+import { setSessionWithTimeout, supabase } from '@/src/infrastructure/supabase';
 
 const OAUTH_MESSAGE_TYPE = 'CHECK_MY_SINTOMS_OAUTH';
 
@@ -91,7 +91,7 @@ function RootLayoutNav() {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type !== OAUTH_MESSAGE_TYPE || !event.data?.tokens) return;
       const { access_token, refresh_token } = event.data.tokens;
-      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      const { error } = await setSessionWithTimeout({ access_token, refresh_token });
       if (!error) router.replace('/(tabs)');
     };
     window.addEventListener('message', handler);
@@ -110,6 +110,9 @@ function RootLayoutNav() {
           <Stack.Screen name="log" options={{ presentation: 'card' }} />
           <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="access" options={{ presentation: 'card' }} />
+          <Stack.Screen name="shared" options={{ presentation: 'card' }} />
+          <Stack.Screen name="doctor" options={{ presentation: 'card' }} />
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>

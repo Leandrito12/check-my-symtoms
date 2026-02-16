@@ -28,6 +28,7 @@ import {
   updateHealthLogImagePath,
 } from '@/src/useCases';
 import { useAuth } from '@/src/hooks/useAuth';
+import { parsePressureInput } from '@/src/utils/parsePressure';
 import { Button, Input, Card, SymptomDropdown, PainSlider, EmergencyAlert } from '@/src/components/ui';
 
 export default function SymptomEntryScreen() {
@@ -39,11 +40,14 @@ export default function SymptomEntryScreen() {
   const [context, setContext] = useState('');
   const [painLevel, setPainLevel] = useState<PainLevel>(0);
   const [bloodPressure, setBloodPressure] = useState('');
+  const [systolic, setSystolic] = useState('');
+  const [diastolic, setDiastolic] = useState('');
   const [heartRate, setHeartRate] = useState('');
   const [oxygenSat, setOxygenSat] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastMapFromBackend, setLastMapFromBackend] = useState<number | null>(null);
 
   const { data: symptoms = [] } = useQuery({
     queryKey: ['symptoms'],
@@ -54,6 +58,12 @@ export default function SymptomEntryScreen() {
   const validateMutation = useMutation({
     mutationFn: processHealthLog,
   });
+
+  const isBloodPressureSymptom = symptom?.name?.toLowerCase().includes('presión') ?? false;
+  const showPressureInputs = isBloodPressureSymptom;
+  const systolicNum = systolic.trim() ? parseInt(systolic, 10) : null;
+  const diastolicNum = diastolic.trim() ? parseInt(diastolic, 10) : null;
+  const pressureAlertBorder = showPressureInputs && systolicNum != null && systolicNum > 140;
 
   const handleCreateSymptom = async (name: string): Promise<SymptomMaster | null> => {
     if (!user?.id) return null;
@@ -93,14 +103,29 @@ export default function SymptomEntryScreen() {
     }
     setIsSaving(true);
     try {
+      let effectiveSystolic = systolicNum;
+      let effectiveDiastolic = diastolicNum;
+      if (!showPressureInputs && bloodPressure.trim()) {
+        const parsed = parsePressureInput(bloodPressure);
+        if (parsed) {
+          effectiveSystolic = parsed.systolic;
+          effectiveDiastolic = parsed.diastolic;
+        }
+      }
+      const bpString = showPressureInputs
+        ? (systolicNum != null && diastolicNum != null ? `${systolicNum}/${diastolicNum}` : '')
+        : effectiveSystolic != null && effectiveDiastolic != null
+          ? `${effectiveSystolic}/${effectiveDiastolic}`
+          : bloodPressure.trim() || '';
       const result = await validateMutation.mutateAsync({
         symptom_id: symptom.id,
         pain_level: painLevel ?? null,
         context: context.trim() || '',
-        blood_pressure: bloodPressure.trim() || '',
+        blood_pressure: bpString,
         heart_rate: heartRate ? parseInt(heartRate, 10) : null,
         oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null,
       });
+      if (result.map != null) setLastMapFromBackend(result.map);
       if (result.emergency) {
         Alert.alert(
           'Posible urgencia',
@@ -109,13 +134,24 @@ export default function SymptomEntryScreen() {
         );
         return;
       }
+      const details =
+        (showPressureInputs && systolicNum != null && diastolicNum != null) ||
+        (effectiveSystolic != null && effectiveDiastolic != null)
+          ? {
+              pressure: {
+                systolic: effectiveSystolic ?? systolicNum!,
+                diastolic: effectiveDiastolic ?? diastolicNum!,
+              },
+            }
+          : undefined;
       const log = await createHealthLog({
         patient_id: user.id,
         symptom_id: symptom.id,
         secondary_symptom_ids: subSymptoms.length > 0 ? subSymptoms.map((s) => s.id) : [],
         pain_level: painLevel,
         context: context.trim() || null,
-        blood_pressure: bloodPressure.trim() || null,
+        details: details ?? null,
+        blood_pressure: details ? undefined : (bloodPressure.trim() || undefined),
         heart_rate: heartRate ? parseInt(heartRate, 10) : null,
         oxygen_saturation: oxygenSat ? parseInt(oxygenSat, 10) : null,
         image_path: null,
@@ -143,10 +179,13 @@ export default function SymptomEntryScreen() {
 
   const goToHome = () => {
     setShowSuccessModal(false);
+    setLastMapFromBackend(null);
     setSymptom(null);
     setContext('');
     setPainLevel(0);
     setBloodPressure('');
+    setSystolic('');
+    setDiastolic('');
     setHeartRate('');
     setOxygenSat('');
     setSubSymptoms([]);
@@ -168,6 +207,11 @@ export default function SymptomEntryScreen() {
             <Text style={styles.modalMessage}>
               El registro se guardó correctamente. Puedes verlo en Inicio.
             </Text>
+            {lastMapFromBackend != null && (
+              <Text style={styles.modalMapFeedback}>
+                MAP: {lastMapFromBackend} mmHg
+              </Text>
+            )}
             <Button
               title="Volver al inicio"
               onPress={goToHome}
@@ -248,29 +292,74 @@ export default function SymptomEntryScreen() {
           {showEmergency && <EmergencyAlert />}
 
           <Text style={styles.fieldLabel}>Datos fisiológicos (opcionales)</Text>
-          <View style={styles.row}>
+          {showPressureInputs ? (
+            <View style={styles.row}>
+              <Input
+                placeholder="Sistólica o 120/80"
+                value={systolic}
+                onChangeText={setSystolic}
+                onBlur={() => {
+                  const parsed = parsePressureInput(systolic);
+                  if (parsed) {
+                    setSystolic(String(parsed.systolic));
+                    setDiastolic(String(parsed.diastolic));
+                  }
+                }}
+                keyboardType="numbers-and-punctuation"
+                style={[styles.halfInput, pressureAlertBorder && styles.inputAlertBorder]}
+              />
+              <Input
+                placeholder="Diastólica"
+                value={diastolic}
+                onChangeText={setDiastolic}
+                keyboardType="number-pad"
+                style={styles.halfInput}
+              />
+            </View>
+          ) : (
+            <View style={styles.row}>
+              <Input
+                placeholder="Presión (ej. 120/80 o 120-80)"
+                value={bloodPressure}
+                onChangeText={setBloodPressure}
+                keyboardType="numbers-and-punctuation"
+                style={styles.halfInput}
+              />
+              <Input
+                placeholder="FC"
+                value={heartRate}
+                onChangeText={setHeartRate}
+                keyboardType="number-pad"
+                style={styles.halfInput}
+              />
+            </View>
+          )}
+          {showPressureInputs && (
+            <View style={styles.row}>
+              <Input
+                placeholder="FC"
+                value={heartRate}
+                onChangeText={setHeartRate}
+                keyboardType="number-pad"
+                style={styles.halfInput}
+              />
+              <Input
+                placeholder="Saturación O2 %"
+                value={oxygenSat}
+                onChangeText={setOxygenSat}
+                keyboardType="number-pad"
+                style={styles.halfInput}
+              />
+            </View>
+          )}
+          {!showPressureInputs && (
             <Input
-              placeholder="Presión"
-              value={bloodPressure}
-              onChangeText={setBloodPressure}
-              keyboardType="numbers-and-punctuation"
-              style={styles.halfInput}
-            />
-            <Input
-              placeholder="FC"
-              value={heartRate}
-              onChangeText={setHeartRate}
+              placeholder="Saturación O2 %"
+              value={oxygenSat}
+              onChangeText={setOxygenSat}
               keyboardType="number-pad"
-              style={styles.halfInput}
             />
-          </View>
-          <Input
-            placeholder="Saturación O2 %"
-            value={oxygenSat}
-            onChangeText={setOxygenSat}
-            keyboardType="number-pad"
-          />
-
+          )}
           <View style={styles.photoSection}>
             {photoUri ? (
               <View style={styles.photoPreview}>
@@ -335,6 +424,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 12 },
   halfInput: { flex: 1 },
+  inputAlertBorder: { borderColor: SafeHarbor.colors.alert, borderWidth: 2 },
   badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -421,6 +511,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: SafeHarbor.colors.text,
     marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalMapFeedback: {
+    fontSize: 14,
+    color: SafeHarbor.colors.secondary,
+    fontWeight: '600',
+    marginBottom: 16,
     textAlign: 'center',
   },
   modalButton: {

@@ -1,0 +1,5 @@
+appId: host.exp.exponent # O com.exponent.Expo para iOS
+---
+- takeScreenshot: "Inicio"
+- tapOn: "Nombre de algún botón de tu app"
+- inputText: "Hola desde Maestro"

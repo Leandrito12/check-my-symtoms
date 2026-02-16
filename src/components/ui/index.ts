@@ -5,3 +5,7 @@ export { SymptomDropdown } from './SymptomDropdown';
 export { PainSlider } from './PainSlider';
 export { EmergencyAlert } from './EmergencyAlert';
 export { SkeletonLog } from './SkeletonLog';
+export { StyledText } from './StyledText';
+export type { StyledTextVariant } from './StyledText';
+export { Badge } from './Badge';
+export { Tag } from './Tag';

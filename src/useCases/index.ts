@@ -20,3 +20,22 @@ export { prescriptionSignedUrl } from './prescriptionSignedUrl';
 export type { PrescriptionSignedUrlPayload, PrescriptionSignedUrlResponse } from './prescriptionSignedUrl';
 export { fetchHealthLogsForPatient } from './fetchHealthLogsForPatient';
 export type { HealthLogForPatient } from './fetchHealthLogsForPatient';
+export { getPatientAnalytics } from './getPatientAnalytics';
+export { fetchClinicalHistory } from './fetchClinicalHistory';
+export { manageClinicalRecord } from './manageClinicalRecord';
+export { grantAccess } from './grantAccess';
+export type { GrantAccessRequest, GrantAccessResponse } from './grantAccess';
+export { revokeAccess } from './revokeAccess';
+export type { RevokeAccessRequest } from './revokeAccess';
+export { fetchAccessRequests } from './fetchAccessRequests';
+export type { AccessRequestsResponse, PendingRequest, AuthorizedDoctor } from './fetchAccessRequests';
+export { fetchSharedHistory } from './fetchSharedHistory';
+export type {
+  SharedHistoryResponse,
+  SharedHistoryRange,
+  SharedHistoryPatientInfo,
+  SharedHistoryAnalytics,
+  SharedHistoryLog,
+} from './fetchSharedHistory';
+export { requestAccess } from './requestAccess';
+export type { RequestAccessPayload, RequestAccessResponse } from './requestAccess';
