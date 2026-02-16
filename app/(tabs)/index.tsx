@@ -57,16 +57,18 @@ function LogCard({
         style={({ pressed }) => [styles.gridCardMain, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
         onPress={onPress}
       >
-        <View style={styles.gridCardHeader}>
-          <Text style={styles.gridCardName} numberOfLines={2}>{log.symptom_name}</Text>
-          {hasPrescription && (
-            <View style={styles.recetaBadge}>
-              <Text style={styles.recetaBadgeText}>Receta</Text>
-            </View>
-          )}
-        </View>
-        <View style={[styles.painBadge, { backgroundColor: log.pain_level != null && log.pain_level >= 6 ? SafeHarbor.painLevelColors.alert : SafeHarbor.colors.border }]}>
-          <Text style={styles.painText}>{log.pain_level ?? '–'}</Text>
+        <View style={styles.gridCardTopRow}>
+          <View style={styles.gridCardHeader}>
+            <Text style={styles.gridCardName} numberOfLines={2}>{log.symptom_name}</Text>
+            {hasPrescription && (
+              <View style={styles.recetaBadge}>
+                <Text style={styles.recetaBadgeText}>Receta</Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.painBadge, { backgroundColor: log.pain_level != null && log.pain_level >= 6 ? SafeHarbor.painLevelColors.alert : SafeHarbor.colors.border }]}>
+            <Text style={styles.painText}>{log.pain_level ?? '–'}</Text>
+          </View>
         </View>
         <Text style={styles.logDate}>
           {new Date(log.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -169,7 +171,7 @@ export default function HomeTab() {
                     </View>
                   )}
                 </View>
-                <View style={[styles.painBadge, { backgroundColor: log.pain_level != null && log.pain_level >= 6 ? SafeHarbor.painLevelColors.alert : SafeHarbor.colors.border }]}>
+                <View style={[styles.painBadge, { backgroundColor: log.pain_level != null && log.pain_level >= 6 ? SafeHarbor.painLevelColors.alert : SafeHarbor.colors.border, marginRight: 10 }]}>
                   <Text style={styles.painText}>{log.pain_level ?? '–'}</Text>
                 </View>
                 <Text style={styles.logDate}>
@@ -235,12 +237,20 @@ const styles = StyleSheet.create({
   gridCardMain: {
     padding: 14,
   },
+  gridCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 8,
+  },
   gridCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 8,
+    flex: 1,
+    minWidth: 0,
   },
   gridCardName: {
     flex: 1,
@@ -290,7 +300,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
   },
   painText: { fontSize: 12, fontWeight: '700', color: SafeHarbor.colors.white },
   logDate: { fontSize: 12, color: SafeHarbor.colors.text, opacity: 0.7 },
@@ -309,5 +318,8 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '300',
     color: SafeHarbor.colors.white,
+    lineHeight: 56,
+    textAlign: 'center',
+    width: 56,
   },
 });

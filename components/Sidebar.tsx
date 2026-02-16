@@ -32,7 +32,12 @@ function isActivePath(pathname: string, href: string): boolean {
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/(auth)/login' as never);
+  };
 
   return (
     <View style={[styles.sidebar, Platform.OS === 'web' && styles.sidebarWeb]}>
@@ -70,6 +75,13 @@ export function Sidebar() {
               onPress={() => router.push('/access' as never)}
             >
               <Text style={styles.accessLinkText}>Gestión de accesos</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.logoutBtn, { opacity: pressed ? 0.9 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
+              onPress={handleSignOut}
+            >
+              <FontAwesome name="power-off" size={16} color={SafeHarbor.colors.alert} />
+              <Text style={styles.logoutText}>Cerrar sesión</Text>
             </Pressable>
           </>
         ) : (
@@ -147,6 +159,18 @@ const styles = StyleSheet.create({
   accessLinkText: {
     fontSize: 13,
     color: SafeHarbor.colors.primary,
+    fontWeight: '600',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  logoutText: {
+    fontSize: 13,
+    color: SafeHarbor.colors.alert,
     fontWeight: '600',
   },
 });

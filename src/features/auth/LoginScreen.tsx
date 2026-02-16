@@ -3,7 +3,10 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } fr
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { Button, Input } from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
 import { getAuthErrorMessage } from '@/src/utils/authErrors';
+
+const LOGIN_BLOCK_MAX = 800;
 
 interface LoginScreenProps {
   onGoRegister: () => void;
@@ -12,6 +15,7 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProps) {
   const { signIn, signInWithGoogle } = useAuth();
+  const { isDesktop } = useBreakpointContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,17 +52,14 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
     }
   };
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+  const content = (
+    <ScrollView
+      contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      style={isDesktop ? styles.scrollViewDesktop : undefined}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.title}>Iniciar sesión</Text>
+      <Text style={styles.title}>Iniciar sesión</Text>
         <Text style={styles.subtitle}>Accede a tu historial de síntomas</Text>
 
         <Input
@@ -99,18 +100,59 @@ export default function LoginScreen({ onGoRegister, onSuccess }: LoginScreenProp
           fullWidth
           style={styles.button}
         />
-        <Button title="Crear cuenta" variant="outline" onPress={onGoRegister} fullWidth />
-      </ScrollView>
+      <Button title="Crear cuenta" variant="outline" onPress={onGoRegister} fullWidth />
+    </ScrollView>
+  );
+
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopWrap}>
+        <View style={styles.loginBlock}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardWrap}
+          >
+            {content}
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      {content}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SafeHarbor.colors.background },
+  desktopWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: SafeHarbor.colors.background,
+  },
+  loginBlock: {
+    width: '100%',
+    maxWidth: LOGIN_BLOCK_MAX,
+    maxHeight: LOGIN_BLOCK_MAX,
+    backgroundColor: SafeHarbor.colors.background,
+  },
+  keyboardWrap: { flex: 1 },
+  scrollViewDesktop: { maxHeight: LOGIN_BLOCK_MAX },
   scroll: {
     flexGrow: 1,
     padding: 24,
     paddingTop: 48,
+  },
+  scrollDesktop: {
+    paddingTop: 32,
+    paddingBottom: 48,
   },
   title: {
     fontSize: 24,

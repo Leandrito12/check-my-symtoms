@@ -1,17 +1,23 @@
 /**
  * Envuelve la navegación: en desktop muestra Sidebar + área de contenido; en mobile solo hijos.
- * Plan arquitectura universal.
+ * En login/registro no se muestra el sidebar para que el formulario quede centrado.
  */
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { usePathname } from 'expo-router';
 import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
 import { Sidebar } from './Sidebar';
 
+function isAuthRoute(pathname: string): boolean {
+  return pathname.includes('login') || pathname.includes('register') || pathname.includes('(auth)');
+}
+
 export function NavigationWrapper({ children }: { children: React.ReactNode }) {
   const { isDesktop } = useBreakpointContext();
+  const pathname = usePathname();
 
-  if (!isDesktop) {
+  if (!isDesktop || isAuthRoute(pathname)) {
     return <>{children}</>;
   }
 

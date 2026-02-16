@@ -228,7 +228,7 @@ export default function SymptomEntryScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ResponsiveContainer forForm style={styles.responsiveWrap}>
+      <ResponsiveContainer forForm maxWidth={isDesktop ? 1000 : undefined} style={styles.responsiveWrap}>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
@@ -582,10 +582,10 @@ const styles = StyleSheet.create({
   twoColCol: {
     flex: 1,
     minWidth: 0,
-    maxWidth: 520,
+    maxWidth: 580,
   },
   inputWrapDesktop: {
-    maxWidth: 520,
+    maxWidth: 580,
   },
   requiredFieldWrapper: {
     marginBottom: 4,
@@ -603,8 +603,8 @@ const styles = StyleSheet.create({
     color: SafeHarbor.colors.text,
     marginBottom: 8,
   },
-  row: { flexDirection: 'row', gap: 12 },
-  halfInput: { flex: 1 },
+  row: { flexDirection: 'row', gap: 12, minWidth: 0 },
+  halfInput: { flex: 1, minWidth: 0 },
   inputAlertBorder: { borderColor: SafeHarbor.colors.alert, borderWidth: 2 },
   badgesRow: {
     flexDirection: 'row',
