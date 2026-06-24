@@ -1,6 +1,7 @@
 /**
- * Hook de analíticas del dashboard. Query key incluye range para evitar datos viejos
- * al cambiar 7d → 30d → 90d. Plan refinado Fase 1.
+ * Hook de analíticas del dashboard. Comparte la query key ['health-logs', userId]
+ * con Inicio (mismo fetch) para que UNA sola petición y UNA sola invalidación cubran
+ * ambas vistas. El rango (1d/7d/30d/90d) se filtra en cliente, no en la key.
  */
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -39,7 +40,7 @@ export function useHealthAnalytics(range: HealthAnalyticsRangeOrNone = '7d') {
   const userId = user?.id ?? '';
 
   const { data: logs = [], isLoading, error } = useQuery({
-    queryKey: ['health-analytics', userId],
+    queryKey: ['health-logs', userId],
     queryFn: () => fetchHealthLogsForPatient(userId),
     enabled: !!userId,
   });
