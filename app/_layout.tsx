@@ -21,6 +21,7 @@ import { PrescriptionViewerProvider } from '@/src/contexts/PrescriptionViewerCon
 import { BreakpointProvider } from '@/src/contexts/BreakpointContext';
 import { setSessionWithTimeout } from '@/src/infrastructure/supabase';
 import { isAllowedReturnTo } from '@/src/constants/auth';
+import { AuthProvider } from '@/src/contexts/AuthContext';
 
 const OAUTH_MESSAGE_TYPE = 'CHECK_MY_SINTOMS_OAUTH';
 
@@ -76,9 +77,11 @@ export default function RootLayout() {
         queryClient.resumePausedMutations();
       }}
     >
-      <PrescriptionViewerProvider>
-        <RootLayoutNav />
-      </PrescriptionViewerProvider>
+      <AuthProvider>
+        <PrescriptionViewerProvider>
+          <RootLayoutNav />
+        </PrescriptionViewerProvider>
+      </AuthProvider>
     </PersistQueryClientProvider>
   );
 }
