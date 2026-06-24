@@ -39,3 +39,7 @@ export type {
 } from './fetchSharedHistory';
 export { requestAccess } from './requestAccess';
 export type { RequestAccessPayload, RequestAccessResponse } from './requestAccess';
+export { createBundleShare } from './createBundleShare';
+export type { CreateBundleShareResponse } from './createBundleShare';
+export { fetchSharedBundle } from './fetchSharedBundle';
+export type { SharedBundleResponse, SharedBundleLog } from './fetchSharedBundle';

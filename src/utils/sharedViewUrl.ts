@@ -8,3 +8,12 @@ export function getSharedViewUrl(logId: string): string {
   const base = BASE_URL.replace(/\/$/, '');
   return base ? `${base}/v/${logId}` : `/v/${logId}`;
 }
+
+/**
+ * URL pública del bundle (varios registros de un rango bajo un solo link).
+ * El médico la abre en /b/{token}; el backend resuelve el rango por el token.
+ */
+export function getBundleShareUrl(token: string): string {
+  const base = BASE_URL.replace(/\/$/, '');
+  return base ? `${base}/b/${token}` : `/b/${token}`;
+}

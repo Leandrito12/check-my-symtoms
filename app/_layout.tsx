@@ -122,6 +122,7 @@ function RootLayoutNav() {
               <Stack.Screen name="auth" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="v" options={{ presentation: 'card' }} />
+              <Stack.Screen name="b" options={{ presentation: 'card' }} />
               <Stack.Screen name="log" options={{ presentation: 'card' }} />
               <Stack.Screen name="prescription-viewer" options={{ presentation: 'modal' }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

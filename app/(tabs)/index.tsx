@@ -1,14 +1,15 @@
-import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Share, Platform } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, Share, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { SafeHarbor } from '@/constants/SafeHarbor';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useBreakpointContext } from '@/src/contexts/BreakpointContext';
 import { ResponsiveContainer } from '@/src/components/ResponsiveContainer';
-import { getSharedViewUrl } from '@/src/utils/sharedViewUrl';
+import { getSharedViewUrl, getBundleShareUrl } from '@/src/utils/sharedViewUrl';
 import type { HealthLogForPatient } from '@/src/useCases';
-import { fetchHealthLogsForPatient, sharedLogGet } from '@/src/useCases';
+import { fetchHealthLogsForPatient, sharedLogGet, createBundleShare } from '@/src/useCases';
+import { type DateRange, DATE_RANGES, DATE_RANGE_LABELS, dateRangeTitle, rangeBounds, filterByRange } from '@/src/utils/dateRange';
 
 const MAX_LOGS_FOR_PRESCRIPTION_CHECK = 20;
 
@@ -98,9 +99,27 @@ export default function HomeTab() {
     enabled: !!userId,
   });
 
+  const [range, setRange] = useState<DateRange>('30d');
+  const [sharingRange, setSharingRange] = useState(false);
+  const filteredLogs = useMemo(() => filterByRange(logs, range), [logs, range]);
+
+  const shareRange = useCallback(async () => {
+    setSharingRange(true);
+    try {
+      const { from, to } = rangeBounds(range);
+      const { token } = await createBundleShare(from, to);
+      const url = getBundleShareUrl(token);
+      await Share.share({ message: url, title: 'Mi historial para el médico', url });
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo generar el link.');
+    } finally {
+      setSharingRange(false);
+    }
+  }, [range]);
+
   const logIdsToCheck = useMemo(
-    () => logs.slice(0, MAX_LOGS_FOR_PRESCRIPTION_CHECK).map((log) => log.id),
-    [logs]
+    () => filteredLogs.slice(0, MAX_LOGS_FOR_PRESCRIPTION_CHECK).map((log) => log.id),
+    [filteredLogs]
   );
 
   const sharedLogResults = useQueries({
@@ -141,23 +160,66 @@ export default function HomeTab() {
         <ActivityIndicator size="small" color={SafeHarbor.colors.primary} style={styles.loader} />
       ) : logs.length === 0 ? (
         <Text style={styles.empty}>Aún no tienes registros. Añade uno con el botón +.</Text>
-      ) : isDesktop ? (
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          <View style={styles.grid}>
-            {logs.map((log) => (
-              <LogCard
-                key={log.id}
-                log={log}
-                hasPrescription={logIdsWithPrescription.has(log.id)}
-                onPress={() => router.push(`/log/${log.id}`)}
-                onShare={() => shareLog(log.id)}
-              />
+      ) : (
+        <>
+          <View style={styles.rangeChips}>
+            {DATE_RANGES.map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => setRange(r)}
+                style={({ pressed }) => [
+                  styles.rangeChip,
+                  range === r && styles.rangeChipActive,
+                  { opacity: pressed ? 0.8 : 1 },
+                  Platform.OS === 'web' && { cursor: 'pointer' },
+                ]}
+              >
+                <Text style={[styles.rangeChipText, range === r && styles.rangeChipTextActive]}>
+                  {DATE_RANGE_LABELS[r]}
+                </Text>
+              </Pressable>
             ))}
           </View>
-        </ScrollView>
-      ) : (
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          {logs.map((log) => (
+          <View style={styles.rangeHeader}>
+            <Text style={styles.rangeTitle}>
+              {dateRangeTitle(range)} · {filteredLogs.length}{' '}
+              {filteredLogs.length === 1 ? 'registro' : 'registros'}
+            </Text>
+            {filteredLogs.length > 0 && (
+              <Pressable
+                onPress={shareRange}
+                disabled={sharingRange}
+                style={({ pressed }) => [
+                  styles.shareRangeBtn,
+                  { opacity: pressed || sharingRange ? 0.7 : 1 },
+                  Platform.OS === 'web' && { cursor: 'pointer' },
+                ]}
+              >
+                <Text style={styles.shareRangeBtnText}>
+                  {sharingRange ? 'Generando…' : 'Compartir rango'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+          {filteredLogs.length === 0 ? (
+            <Text style={styles.empty}>No hay registros en este rango. Probá uno más amplio.</Text>
+          ) : isDesktop ? (
+            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+              <View style={styles.grid}>
+                {filteredLogs.map((log) => (
+                  <LogCard
+                    key={log.id}
+                    log={log}
+                    hasPrescription={logIdsWithPrescription.has(log.id)}
+                    onPress={() => router.push(`/log/${log.id}`)}
+                    onShare={() => shareLog(log.id)}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          ) : (
+            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+              {filteredLogs.map((log) => (
             <View key={log.id} style={styles.logRow}>
               <Pressable
                 style={({ pressed }) => [styles.logRowMain, { opacity: pressed ? 0.8 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
@@ -186,7 +248,9 @@ export default function HomeTab() {
               </Pressable>
             </View>
           ))}
-        </ScrollView>
+            </ScrollView>
+          )}
+        </>
       )}
       <Pressable
         style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.9 : 1 }, Platform.OS === 'web' && { cursor: 'pointer' }]}
@@ -219,6 +283,32 @@ const styles = StyleSheet.create({
   },
   loader: { marginTop: 16 },
   empty: { fontSize: 14, color: SafeHarbor.colors.text, opacity: 0.7, marginTop: 8 },
+  rangeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  rangeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    backgroundColor: SafeHarbor.colors.commentBg,
+  },
+  rangeChipActive: { backgroundColor: SafeHarbor.colors.primary },
+  rangeChipText: { fontSize: 13, fontWeight: '600', color: SafeHarbor.colors.text },
+  rangeChipTextActive: { color: SafeHarbor.colors.white },
+  rangeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  rangeTitle: { fontSize: 14, fontWeight: '600', color: SafeHarbor.colors.text, flexShrink: 1 },
+  shareRangeBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: SafeHarbor.spacing.cardRadius,
+    backgroundColor: SafeHarbor.colors.primary,
+  },
+  shareRangeBtnText: { fontSize: 13, fontWeight: '600', color: SafeHarbor.colors.white },
   list: { flex: 1 },
   grid: {
     flexDirection: 'row',
