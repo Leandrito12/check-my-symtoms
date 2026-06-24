@@ -123,6 +123,19 @@ export default function PatientLogDetailScreen() {
             </View>
           </View>
           {log.context ? <Text style={styles.context}>{log.context}</Text> : null}
+          {(log.blood_pressure || log.heart_rate != null || log.oxygen_saturation != null) ? (
+            <View style={styles.vitals}>
+              {log.blood_pressure ? (
+                <Text style={styles.vital}>Presión: {log.blood_pressure}</Text>
+              ) : null}
+              {log.heart_rate != null ? (
+                <Text style={styles.vital}>FC: {log.heart_rate} lpm</Text>
+              ) : null}
+              {log.oxygen_saturation != null ? (
+                <Text style={styles.vital}>Sat O2: {log.oxygen_saturation}%</Text>
+              ) : null}
+            </View>
+          ) : null}
           <Text style={styles.date}>
             {new Date(log.created_at).toLocaleString('es-ES', {
               day: 'numeric',
@@ -218,6 +231,8 @@ const styles = StyleSheet.create({
   },
   painText: { fontSize: 16, fontWeight: '700', color: SafeHarbor.colors.white },
   context: { fontSize: 14, color: SafeHarbor.colors.text, marginBottom: 8 },
+  vitals: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 8 },
+  vital: { fontSize: 13, color: SafeHarbor.colors.text, opacity: 0.9 },
   date: { fontSize: 12, color: SafeHarbor.colors.text, opacity: 0.7 },
   shareCardBtn: {
     marginBottom: 24,
