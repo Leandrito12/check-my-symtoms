@@ -40,7 +40,7 @@ export function Sidebar() {
   };
 
   return (
-    <View style={[styles.sidebar, Platform.OS === 'web' && styles.sidebarWeb]}>
+    <View style={styles.sidebar}>
       <View style={styles.logoBlock}>
         <Text style={styles.logoText}>Check my síntomas</Text>
       </View>
@@ -106,9 +106,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 16,
     justifyContent: 'space-between',
-  },
-  sidebarWeb: {
-    cursor: 'default',
   },
   logoBlock: {
     marginBottom: 24,
