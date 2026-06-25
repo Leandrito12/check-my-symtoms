@@ -190,7 +190,7 @@ export function HealthDashboardScreen() {
     () =>
       points
         .filter((p) => p.heartRate != null)
-        .map((p) => ({ x: p.index, heartRate: p.heartRate!, label: p.label })),
+        .map((p, i) => ({ x: i, heartRate: p.heartRate!, label: p.label })),
     [points]
   );
 
@@ -445,6 +445,7 @@ export function HealthDashboardScreen() {
                   frame: SafeHarbor.colors.border,
                 },
                 formatYLabel: (v) => `${Math.round(v)}`,
+                formatXLabel: (value) => heartRateData[Math.round(value)]?.label ?? '',
               }}
             >
               {({ points: pts }) => (

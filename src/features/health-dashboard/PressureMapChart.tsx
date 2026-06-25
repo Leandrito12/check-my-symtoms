@@ -30,8 +30,8 @@ export function PressureMapChart({ data, emptyMessage, height = CHART_HEIGHT }: 
 
   const chartData = useMemo(
     () =>
-      data.map((p) => ({
-        x: p.index,
+      data.map((p, i) => ({
+        x: i,
         systolic: p.systolic,
         diastolic: p.diastolic,
         map: p.map,

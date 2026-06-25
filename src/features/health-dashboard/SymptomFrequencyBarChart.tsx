@@ -1,7 +1,8 @@
 /**
  * Frecuencia de síntomas como ranking horizontal (lista de progreso).
- * Analítica móvil: nombres a la izquierda (más espacio), barra de progreso y total a la derecha.
- * Orden: más frecuente primero. Truncado a 20 caracteres con "…"; tocar muestra nombre completo.
+ * Cada fila: nombre + total arriba, y una barra de ancho COMPLETO debajo que
+ * arranca en 0 (borde izquierdo) para comparar de un vistazo. Orden: más frecuente primero.
+ * Nombre truncado a 20 caracteres con "…"; tocar muestra el nombre completo.
  */
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, ScrollView, useWindowDimensions } from 'react-native';
@@ -13,7 +14,6 @@ import type { SymptomFrequencyItem } from './utils';
 const MAX_NAME_LEN = 20;
 const ROW_MIN_HEIGHT = 44;
 const BAR_HEIGHT = 20;
-const LABEL_LEFT_MIN = 100;
 
 interface SymptomFrequencyBarChartProps {
   data: SymptomFrequencyItem[];
@@ -45,35 +45,26 @@ function RankingRow({
 
   return (
     <View style={[styles.row, isLast && styles.rowLast, isSelected && styles.rowSelected]}>
-      <Pressable
-        style={styles.nameCell}
-        onPress={onNamePress}
-        disabled={!isTruncated}
-        accessibilityLabel={item.symptomName}
-        accessibilityHint={isTruncated ? 'Toca para ver nombre completo' : undefined}
-      >
-        <Text
-          style={[styles.nameText, isTruncated && styles.nameTextTappable]}
-          numberOfLines={2}
-          ellipsizeMode="tail"
+      <View style={styles.rowTop}>
+        <Pressable
+          style={styles.nameCell}
+          onPress={onNamePress}
+          disabled={!isTruncated}
+          accessibilityLabel={item.symptomName}
+          accessibilityHint={isTruncated ? 'Toca para ver nombre completo' : undefined}
         >
-          {displayName}
-        </Text>
-      </Pressable>
-      <View style={styles.barCell}>
-        <View style={styles.barTrack}>
-          <View
-            style={[
-              styles.barFill,
-              {
-                width: `${Math.min(100, progress * 100)}%`,
-              },
-            ]}
-          />
-        </View>
-      </View>
-      <View style={styles.countCell}>
+          <Text
+            style={[styles.nameText, isTruncated && styles.nameTextTappable]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {displayName}
+          </Text>
+        </Pressable>
         <Text style={styles.countText}>{item.count}</Text>
+      </View>
+      <View style={styles.barTrack}>
+        <View style={[styles.barFill, { width: `${Math.min(100, progress * 100)}%` }]} />
       </View>
     </View>
   );
@@ -108,11 +99,9 @@ export function SymptomFrequencyBarChart({
     <ChartCard title="Frecuencia de síntomas" fullWidth>
       <View style={styles.wrapper}>
         <View style={styles.axisRow}>
+          <Text style={styles.axisTick}>0</Text>
           <Text style={styles.axisLabel}>Registros</Text>
-          <View style={styles.axisBarZone}>
-            <Text style={styles.axisTick}>0</Text>
-            <Text style={[styles.axisTick, styles.axisTickEnd]}>{maxCount}</Text>
-          </View>
+          <Text style={styles.axisTick}>{maxCount}</Text>
         </View>
         <ScrollView
           style={[styles.listScroll, { maxHeight: maxListHeight }]}
@@ -151,9 +140,9 @@ const styles = StyleSheet.create({
   axisRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 6,
-    paddingLeft: 4,
-    gap: 10,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: SafeHarbor.colors.border,
   },
@@ -161,21 +150,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: SafeHarbor.colors.textSecondary,
-    minWidth: LABEL_LEFT_MIN,
-  },
-  axisBarZone: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 16,
   },
   axisTick: {
     fontSize: 11,
     color: SafeHarbor.colors.textSecondary,
-  },
-  axisTickEnd: {
-    marginLeft: 'auto',
   },
   listScroll: {
     overflow: 'hidden',
@@ -184,12 +162,10 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
     minHeight: ROW_MIN_HEIGHT,
     paddingVertical: 10,
-    paddingLeft: 4,
-    gap: 10,
+    paddingHorizontal: 4,
+    gap: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SafeHarbor.colors.border,
   },
@@ -201,10 +177,14 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: SafeHarbor.colors.primary,
   },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   nameCell: {
-    minWidth: LABEL_LEFT_MIN,
     flex: 1,
-    justifyContent: 'center',
     paddingRight: 8,
   },
   nameText: {
@@ -214,12 +194,9 @@ const styles = StyleSheet.create({
   nameTextTappable: {
     color: SafeHarbor.colors.primary,
   },
-  barCell: {
-    flex: 1,
-    minWidth: 60,
-  },
   barTrack: {
     height: BAR_HEIGHT,
+    width: '100%',
     backgroundColor: SafeHarbor.colors.commentBg,
     borderRadius: 4,
     overflow: 'hidden',
@@ -228,10 +205,6 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: SafeHarbor.colors.primary,
     borderRadius: 4,
-  },
-  countCell: {
-    width: 32,
-    alignItems: 'flex-end',
   },
   countText: {
     fontSize: 14,
