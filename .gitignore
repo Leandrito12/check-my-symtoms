@@ -35,6 +35,10 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Native projects (CNG/managed: EAS regenera android/ios con prebuild en la nube)
+/android
+/ios
+
 # Android (claves y generados locales)
 *.keystore
 !debug.keystore
